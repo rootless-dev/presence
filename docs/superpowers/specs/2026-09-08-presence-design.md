@@ -103,7 +103,10 @@ PresenceApp (SwiftUI, MenuBarExtra, LSUIElement)
 ```
 
 Build: Swift Package Manager + script de empacotamento do `.app`. Sem projeto
-Xcode, para manter tudo em texto versionável. Swift 6 com strict concurrency;
+Xcode, para manter tudo em texto versionável. Toolchain Swift 6.3, com o
+pacote em modo de linguagem 5: as APIs C do IOKit e os callbacks do
+`DistributedNotificationCenter` geram atrito considerável sob strict
+concurrency, sem benefício real para um app de um processo e uma thread.
 `PresenceController` é `@MainActor` e a UI observa seu estado publicado.
 
 ### Componentes
