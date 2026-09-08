@@ -83,9 +83,9 @@ Executa a cada 30 segundos enquanto ligado:
 2. Aguarda 1 segundo
 3. Lê `IdleReader.seconds()`
 4. Idle < 5s → estado `active`
-5. Idle continua subindo em 3 ciclos consecutivos → estado `degraded`: garante
-   permissão de Acessibilidade e passa a chamar `SyntheticInput` a cada ciclo,
-   mantendo a assertion junto
+5. Idle >= 5s em 3 ciclos consecutivos → estado `degraded`: garante permissão
+   de Acessibilidade e passa a chamar `SyntheticInput` a cada ciclo, mantendo a
+   assertion junto. Qualquer leitura < 5s zera o contador de falhas.
 
 O limite de 3 ciclos evita troca de modo por causa de uma leitura isolada.
 
@@ -118,7 +118,7 @@ O ícone da barra é um círculo cheio quando ativo e contornado quando desligad
 - **IdleReader** (integração real): lê o idle, provoca atividade, confirma que
   o valor caiu.
 - **PresenceController** (unitário, com dependências falsas): transição para
-  `degraded` apenas no terceiro ciclo consecutivo; retorno a `active` quando a
+  `degraded` apenas na terceira leitura consecutiva >= 5s, e não na segunda; retorno a `active` quando a
   assertion volta a funcionar; auto-off disparando no tempo correto; estado
   inicial desligado.
 - **Manual, ao final**: ligar, deixar o Mac parado por 15 minutos, confirmar
