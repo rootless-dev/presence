@@ -25,19 +25,36 @@ Qualquer solução precisa manter esse contador baixo.
 Efeito colateral aceito: enquanto ativo, não há protetor de tela nem bloqueio
 automático. O bloqueio manual continua funcionando normalmente.
 
-## Verificação pendente (primeiro passo da implementação)
+## Verificação (concluída em 2026-09-08)
 
 A premissa central — que `IOPMAssertionDeclareUserActivity` zera o
-`HIDIdleTime` — **ainda não foi confirmada**. Uma tentativa de medição com
-`caffeinate -u` (que usa a mesma API) foi contaminada por input humano durante
-a janela de teste.
+`HIDIdleTime` — **é falsa nesta máquina**.
 
-O primeiro item do plano de implementação é um experimento controlado: com a
-máquina comprovadamente ociosa por 60s, medir o `HIDIdleTime` antes e depois de
-uma declaração de atividade. O resultado decide se o caminho `.declared` é
-viável ou se o app opera sempre em `.synthetic`. A arquitetura suporta os dois
-desfechos sem reescrita — é justamente por isso que a verificação é parte do
-produto.
+Medição com a máquina comprovadamente ociosa, usando `caffeinate -u` (mesma
+API):
+
+```
+idle ANTES = 63,7s | DEPOIS = 70,0s
+```
+
+O contador não caiu: seguiu subindo. Nenhuma flag do `caffeinate` resolve o
+problema do Teams — as demais (`-d`, `-i`, `-s`, `-m`) apenas impedem o sono,
+sem tocar no contador de inatividade.
+
+**Consequências:**
+
+1. `.synthetic` (tecla F15) é o modo normal de operação, não o fallback. A
+   permissão de Acessibilidade é obrigatória.
+2. A power assertion **continua sendo chamada em todo ciclo**. Ela não zera o
+   contador, mas é o que mantém a tela acesa e destravada — e tela bloqueada
+   deixa o Teams amarelo de qualquer forma. Os dois mecanismos são
+   complementares, não alternativos.
+3. O modo verificado é persistido (`Preferences.startMode`). Começar toda
+   sessão em `.declared` gastaria ~90s redescobrindo o que já se sabe, com o
+   status exposto nesse intervalo.
+
+A arquitetura absorveu o resultado sem reescrita — era esse o objetivo de
+tratar a verificação como parte do produto.
 
 ## Abordagem
 
