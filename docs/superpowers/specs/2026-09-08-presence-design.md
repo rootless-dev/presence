@@ -25,19 +25,39 @@ Qualquer solução precisa manter esse contador baixo.
 Efeito colateral aceito: enquanto ativo, não há protetor de tela nem bloqueio
 automático. O bloqueio manual continua funcionando normalmente.
 
-## Verificação pendente (primeiro passo da implementação)
+## Verificação (concluída em 2026-09-08)
 
 A premissa central — que `IOPMAssertionDeclareUserActivity` zera o
-`HIDIdleTime` — **ainda não foi confirmada**. Uma tentativa de medição com
-`caffeinate -u` (que usa a mesma API) foi contaminada por input humano durante
-a janela de teste.
+`HIDIdleTime` — **é falsa nesta máquina**.
 
-O primeiro item do plano de implementação é um experimento controlado: com a
-máquina comprovadamente ociosa por 60s, medir o `HIDIdleTime` antes e depois de
-uma declaração de atividade. O resultado decide se o caminho `.declared` é
-viável ou se o app opera sempre em `.synthetic`. A arquitetura suporta os dois
-desfechos sem reescrita — é justamente por isso que a verificação é parte do
-produto.
+Duas medições independentes, a segunda com o `idle-probe` do próprio projeto
+(2026-09-09), numa janela de 858 segundos de ociosidade real — sem a
+contaminação por input humano que invalidou a primeira tentativa durante o
+design:
+
+```
+caffeinate -u   (2026-09-08):  idle ANTES =  63,7s | DEPOIS =  70,0s
+idle-probe      (2026-09-09):  idle ANTES = 857,8s | DEPOIS = 858,8s
+```
+
+O contador não caiu em nenhuma das duas: seguiu subindo. Nenhuma flag do `caffeinate` resolve o
+problema do Teams — as demais (`-d`, `-i`, `-s`, `-m`) apenas impedem o sono,
+sem tocar no contador de inatividade.
+
+**Consequências:**
+
+1. `.synthetic` (tecla F15) é o modo normal de operação, não o fallback. A
+   permissão de Acessibilidade é obrigatória.
+2. A power assertion **continua sendo chamada em todo ciclo**. Ela não zera o
+   contador, mas é o que mantém a tela acesa e destravada — e tela bloqueada
+   deixa o Teams amarelo de qualquer forma. Os dois mecanismos são
+   complementares, não alternativos.
+3. O modo verificado é persistido (`Preferences.startMode`). Começar toda
+   sessão em `.declared` gastaria ~90s redescobrindo o que já se sabe, com o
+   status exposto nesse intervalo.
+
+A arquitetura absorveu o resultado sem reescrita — era esse o objetivo de
+tratar a verificação como parte do produto.
 
 ## Abordagem
 
@@ -224,13 +244,30 @@ para investigar um "por que ficou amarelo às 15h" depois do fato.
 - **Manual, ao final**: ligar, deixar o Mac parado por 15 minutos, confirmar que
   o Teams permanece verde e que o `HIDIdleTime` no menu se manteve baixo.
 
-## Definição de pronto
+## Definição de pronto — concluída em 2026-09-09
 
-1. Experimento de verificação executado, com resultado registrado neste
-   documento.
-2. Testes automatizados passando.
-3. `Presence.app` instalado em `/Applications`, abrindo com o sistema.
-4. Teste manual de 15 minutos com o Teams verde.
+1. ✅ **Experimento de verificação.** Duas medições, a segunda limpa, registradas
+   acima. A power assertion não zera o `HIDIdleTime`.
+2. ✅ **Testes automatizados.** 37 testes, 0 falhas.
+3. ✅ **App instalado** em `/Applications`, aberto pelo usuário.
+4. ✅ **Teste de ponta a ponta.** Mais de 40 minutos com o Teams verde,
+   confirmado pelo usuário e corroborado por amostragem independente do
+   `HIDIdleTime` a cada 15s:
+
+```
+09:09-09:11   16 → 31 → 46 → 6 → 21 → 36 → 51 → 66 → 81 → 96 → 111   (app ainda não agindo)
+09:12:05      0,4                                                     (passa a agir)
+09:13-09:29   13 → 28 → 10 → 26 → 8 → 23 → 6 → 21 → 4 → 19 → 1 → 16  (dente de serra)
+```
+
+O contador nunca ultrapassa **31,9s** depois de estabilizar — exatamente o ciclo
+de 30s mais o 1s de verificação. O padrão é mecânico, não humano: uso real
+manteria o idle irregular e quase sempre em zero.
+
+O app se estabilizou no modo **`.synthetic`**, como a verificação previa.
+
+Esta é a primeira observação direta do mecanismo central funcionando. Até aqui,
+os testes provavam a lógica em volta do F15, não o F15.
 
 ## Fora de escopo
 

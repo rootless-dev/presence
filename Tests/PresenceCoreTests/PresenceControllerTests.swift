@@ -1,0 +1,313 @@
+import XCTest
+@testable import PresenceCore
+
+@MainActor
+final class PresenceControllerTests: XCTestCase {
+
+    /// Monta um controller com todas as dependências falsas. Cada teste ajusta
+    /// o que precisa nos dublês antes de chamar `tick()`.
+    private func makeController(
+        idle: [TimeInterval] = [0],
+        declarer: FakeDeclarer = FakeDeclarer(),
+        input: FakeInput = FakeInput(),
+        date: FakeDate = FakeDate(),
+        sleeper: Sleeping = NoSleep(),
+        autoOff: AutoOffInterval = .never,
+        initialMode: ActivityMode = .declared
+    ) -> PresenceController {
+        PresenceController(
+            declarer: declarer,
+            idleReader: FakeIdleReader(values: idle),
+            input: input,
+            date: date,
+            sleeper: sleeper,
+            autoOff: autoOff,
+            initialMode: initialMode
+        )
+    }
+
+    func test_estadoInicial_ehDesligado() {
+        let controller = makeController()
+        XCTAssertEqual(controller.state, .off)
+        XCTAssertEqual(controller.mode, .declared)
+    }
+
+    func test_estadoInicial_usaOModoInjetado() {
+        let controller = makeController(initialMode: .synthetic)
+        XCTAssertEqual(controller.mode, .synthetic)
+    }
+
+    func test_ligar_entraEmAtivoNoModoDeclarado() {
+        let controller = makeController()
+        controller.turnOn()
+        XCTAssertEqual(controller.state, .active)
+        XCTAssertEqual(controller.mode, .declared)
+    }
+
+    /// Numa máquina onde já se sabe que a declaração não basta, o app começa
+    /// direto no modo que funciona em vez de gastar 3 ciclos redescobrindo.
+    func test_ligar_respeitaOModoInicialInjetado() {
+        let controller = makeController(initialMode: .synthetic)
+        controller.turnOn()
+        XCTAssertEqual(controller.mode, .synthetic)
+    }
+
+    func test_desligar_voltaParaDesligado() {
+        let controller = makeController()
+        controller.turnOn()
+        controller.turnOff()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    func test_tickDesligado_naoDeclaraAtividade() async {
+        let declarer = FakeDeclarer()
+        let controller = makeController(declarer: declarer)
+        await controller.tick()
+        XCTAssertEqual(declarer.callCount, 0)
+    }
+
+    func test_tickLigado_declaraAtividadeERegistraOIdle() async {
+        let declarer = FakeDeclarer()
+        let controller = makeController(idle: [2], declarer: declarer)
+        controller.turnOn()
+        await controller.tick()
+        XCTAssertEqual(declarer.callCount, 1)
+        XCTAssertEqual(controller.lastIdle, 2)
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    func test_idleAltoDuasVezes_naoEscala() async {
+        let controller = makeController(idle: [10, 10])
+        controller.turnOn()
+        await controller.tick()
+        await controller.tick()
+        XCTAssertEqual(controller.mode, .declared)
+    }
+
+    func test_idleAltoTresVezes_escalaParaSintetico() async {
+        let input = FakeInput()
+        let controller = makeController(idle: [10, 10, 10], input: input)
+        controller.turnOn()
+        await controller.tick()
+        await controller.tick()
+        await controller.tick()
+        XCTAssertEqual(controller.mode, .synthetic)
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    /// Uma leitura boa no meio significa que a declaração está funcionando —
+    /// o contador de falhas volta a zero em vez de acumular pela sessão toda.
+    func test_leituraBoaNoMeio_zeraOContadorDeFalhas() async {
+        let controller = makeController(idle: [10, 10, 0, 10, 10])
+        controller.turnOn()
+        for _ in 0..<5 { await controller.tick() }
+        XCTAssertEqual(controller.mode, .declared)
+    }
+
+    /// Erro do IOKit é sinal definitivo, não ruído: escala na hora.
+    func test_falhaDaAssertion_escalaImediatamente() async {
+        let declarer = FakeDeclarer()
+        declarer.shouldThrow = true
+        let controller = makeController(idle: [0], declarer: declarer)
+        controller.turnOn()
+        await controller.tick()
+        XCTAssertEqual(controller.mode, .synthetic)
+    }
+
+    func test_escalarSemPermissao_vaiParaBloqueado() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [10, 10, 10], input: input)
+        controller.turnOn()
+        for _ in 0..<3 { await controller.tick() }
+        XCTAssertEqual(controller.state, .blocked)
+        XCTAssertEqual(input.requestCount, 1)
+    }
+
+    /// Conceder a permissão com o app aberto tem de passar a valer sozinho, sem
+    /// exigir reinício.
+    func test_permissaoConcedidaDepois_voltaParaAtivo() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [10, 10, 10, 10], input: input)
+        controller.turnOn()
+        for _ in 0..<3 { await controller.tick() }
+        XCTAssertEqual(controller.state, .blocked)
+
+        input.isPermitted = true
+        await controller.tick()
+        XCTAssertEqual(controller.state, .active)
+        XCTAssertEqual(input.tapCount, 1)
+    }
+
+    /// A descoberta de que a declaração não basta tem de sair do controller,
+    /// senão a próxima sessão a redescobre do zero.
+    func test_escalar_notificaAMudancaDeModo() async {
+        var notified: [ActivityMode] = []
+        let controller = makeController(idle: [10, 10, 10])
+        controller.onModeChange = { notified.append($0) }
+        controller.turnOn()
+        for _ in 0..<3 { await controller.tick() }
+        XCTAssertEqual(notified, [.synthetic])
+    }
+
+    func test_modoSintetico_injetaTeclaACadaCiclo() async {
+        let input = FakeInput()
+        let controller = makeController(idle: [10, 10, 10, 0, 0], input: input)
+        controller.turnOn()
+        for _ in 0..<5 { await controller.tick() }
+        XCTAssertEqual(controller.mode, .synthetic)
+        XCTAssertEqual(input.tapCount, 2)
+    }
+
+    /// Cenário real: o app foi reinstalado, a assinatura ad-hoc mudou e o macOS
+    /// revogou a Acessibilidade — mas as preferências dizem para começar em
+    /// sintético. Sem pedir a permissão, o app ficaria mudo para sempre.
+    func test_iniciarEmSinteticoSemPermissao_pedeAPermissaoUmaVez() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [0, 0, 0], input: input, initialMode: .synthetic)
+        controller.turnOn()
+        for _ in 0..<3 { await controller.tick() }
+        XCTAssertEqual(controller.state, .blocked)
+        XCTAssertEqual(input.requestCount, 1, "pede uma vez por sessão, não a cada ciclo")
+    }
+
+    /// Religar depois de desligar volta a pedir — o usuário pode ter concedido
+    /// a permissão nesse meio-tempo e querer tentar de novo.
+    func test_religar_voltaAPedirAPermissao() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [0, 0], input: input, initialMode: .synthetic)
+        controller.turnOn()
+        await controller.tick()
+        controller.turnOff()
+        controller.turnOn()
+        await controller.tick()
+        XCTAssertEqual(input.requestCount, 2)
+    }
+
+    func test_autoOffNunca_seguirLigadoDepoisDeDias() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .never)
+        controller.turnOn()
+        date.advance(by: 3 * 24 * 3600)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    func test_autoOff8h_seguirLigadoAntesDoPrazo() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hours8)
+        controller.turnOn()
+        date.advance(by: 7 * 3600)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    func test_autoOff8h_desligaDepoisDoPrazo() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hours8)
+        controller.turnOn()
+        date.advance(by: 8 * 3600 + 1)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// O Mac dormiu 9 horas com o app ligado. Ao acordar, o prazo já passou —
+    /// contar ciclos em vez de tempo de parede faria o app seguir ligado.
+    func test_autoOff_contaTempoDeSleep() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hours8)
+        controller.turnOn()
+        await controller.tick()
+        date.advance(by: 9 * 3600)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// Religar reinicia a contagem do zero.
+    func test_religar_reiniciaOPrazo() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hour1)
+        controller.turnOn()
+        date.advance(by: 3601)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+
+        controller.turnOn()
+        date.advance(by: 60)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    func test_bloquearTela_pausaSemDesligar() async {
+        let declarer = FakeDeclarer()
+        let controller = makeController(idle: [0], declarer: declarer)
+        controller.turnOn()
+        controller.screenLocked()
+        XCTAssertEqual(controller.state, .pausedLocked)
+
+        await controller.tick()
+        XCTAssertEqual(declarer.callCount, 0, "com a tela bloqueada o laço não age")
+    }
+
+    func test_desbloquearTela_retomaSozinho() async {
+        let controller = makeController(idle: [0])
+        controller.turnOn()
+        controller.screenLocked()
+        controller.screenUnlocked()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    /// Bloquear a tela com o app desligado não pode ligá-lo ao desbloquear.
+    func test_bloquearComAppDesligado_continuaDesligado() {
+        let controller = makeController()
+        controller.screenLocked()
+        XCTAssertEqual(controller.state, .off)
+        controller.screenUnlocked()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// Bloqueou estando em `blocked`? Ao desbloquear volta para `active` e o
+    /// laço reavalia a permissão no ciclo seguinte.
+    func test_bloquearEstandoSemPermissao_retomaAoDesbloquear() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [10, 10, 10], input: input)
+        controller.turnOn()
+        for _ in 0..<3 { await controller.tick() }
+        XCTAssertEqual(controller.state, .blocked)
+
+        controller.screenLocked()
+        XCTAssertEqual(controller.state, .pausedLocked)
+        controller.screenUnlocked()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    /// Desligar durante a janela de verificação não pode deixar o app alegando
+    /// que está ativo — o laço já foi cancelado pelo runner nesse ponto.
+    func test_desligarDuranteAVerificacao_naoRessuscitaOEstado() async {
+        let declarer = FakeDeclarer()
+        declarer.shouldThrow = true
+        let spy = SleeperSpy()
+        let controller = makeController(idle: [10], declarer: declarer, sleeper: spy)
+        controller.turnOn()
+        spy.during = { controller.turnOff() }
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// Bloquear a tela durante a janela de verificação não pode tirar o app da
+    /// pausa — voltar para `.active` faria o laço reacender o monitor.
+    func test_bloquearDuranteAVerificacao_naoRessuscitaOEstado() async {
+        let declarer = FakeDeclarer()
+        declarer.shouldThrow = true
+        let spy = SleeperSpy()
+        let controller = makeController(idle: [10], declarer: declarer, sleeper: spy)
+        controller.turnOn()
+        spy.during = { controller.screenLocked() }
+        await controller.tick()
+        XCTAssertEqual(controller.state, .pausedLocked)
+    }
+}
