@@ -5,6 +5,7 @@ struct MenuView: View {
 
     @ObservedObject var controller: PresenceController
     let runner: PresenceRunner
+    @State private var launchAtLogin = LoginItem.isEnabled
 
     var body: some View {
         Button(controller.state == .off ? "Ativar" : "Desativar") {
@@ -26,6 +27,15 @@ struct MenuView: View {
                 Text(interval.label).tag(interval)
             }
         }
+
+        Toggle("Abrir com o sistema", isOn: Binding(
+            get: { launchAtLogin },
+            set: { newValue in
+                if LoginItem.setEnabled(newValue) {
+                    launchAtLogin = newValue
+                }
+            }
+        ))
 
         Divider()
 

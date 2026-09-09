@@ -1,4 +1,5 @@
 import Foundation
+import OSLog
 
 /// Orquestra o laço que mantém o contador de inatividade baixo.
 ///
@@ -24,6 +25,8 @@ public final class PresenceController: ObservableObject {
     /// Avisa quando o modo muda, para que a camada de app persista a
     /// descoberta e a próxima sessão já comece no modo certo.
     public var onModeChange: ((ActivityMode) -> Void)?
+
+    private let log = Logger(subsystem: "com.carlos.presence", category: "controller")
 
     private let declarer: ActivityDeclaring
     private let idleReader: IdleReading
@@ -61,12 +64,14 @@ public final class PresenceController: ObservableObject {
         consecutiveHighIdle = 0
         hasRequestedPermission = false
         startedAt = date.now
+        log.notice("ligado, modo declared, autoOff \(self.autoOff.rawValue, privacy: .public)")
     }
 
     public func turnOff() {
         state = .off
         consecutiveHighIdle = 0
         startedAt = nil
+        log.notice("desligado")
     }
 
     public func tick() async {
@@ -106,6 +111,7 @@ public final class PresenceController: ObservableObject {
             consecutiveHighIdle = 0
         } else {
             consecutiveHighIdle += 1
+            log.info("idle alto: \(self.lastIdle, format: .fixed(precision: 1)) s, falha \(self.consecutiveHighIdle)")
             if consecutiveHighIdle >= Self.failuresBeforeEscalation && mode == .declared {
                 escalate()
             }
@@ -124,6 +130,7 @@ public final class PresenceController: ObservableObject {
             requestPermissionOnce()
             state = .blocked
         }
+        log.notice("escalou para synthetic, estado \(String(describing: self.state), privacy: .public)")
     }
 
     /// O diálogo do sistema só aparece uma vez por processo; pedir a cada ciclo
