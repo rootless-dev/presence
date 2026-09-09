@@ -161,9 +161,10 @@ ociosidade. Um ciclo de 30s com escalonamento em 3 falhas leva no máximo ~93s
 para corrigir o modo — bem dentro da janela. Os números não são arbitrários.
 
 **App Nap.** Um app `LSUIElement` em segundo plano sofre coalescing de timers, e
-um atraso grande no laço derrubaria a garantia acima. O controller mantém um
-`ProcessInfo.beginActivity(options: .userInitiated)` enquanto ativo e usa
-`Timer.tolerance = 0`.
+um atraso grande no laço derrubaria a garantia acima. O laço é uma `Task` com
+`Task.sleep` entre os ciclos, e o app mantém um
+`ProcessInfo.beginActivity(options: .userInitiated)` enquanto ativo — é o
+`beginActivity` que impede o adiamento, não o tipo de timer.
 
 ## Interface
 
