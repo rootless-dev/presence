@@ -70,13 +70,51 @@ public final class PresenceController: ObservableObject {
     public func tick() async {
         guard state == .active || state == .blocked else { return }
 
+        var declareFailed = false
         do {
             try declarer.declare()
         } catch {
-            // Tratado na Task 5.
+            declareFailed = true
+        }
+
+        if mode == .synthetic {
+            guard input.isPermitted else {
+                state = .blocked
+                return
+            }
+            state = .active
+            _ = input.tap()
         }
 
         await sleeper.sleep(seconds: Self.verifyDelay)
         lastIdle = idleReader.idleSeconds()
+
+        if declareFailed && mode == .declared {
+            escalate()
+            return
+        }
+
+        if lastIdle < Self.idleThreshold {
+            consecutiveHighIdle = 0
+        } else {
+            consecutiveHighIdle += 1
+            if consecutiveHighIdle >= Self.failuresBeforeEscalation && mode == .declared {
+                escalate()
+            }
+        }
+    }
+
+    /// Passa a injetar input de verdade. Se a permissão não estiver concedida,
+    /// pede uma vez e assume `blocked` — o app não finge estar funcionando.
+    private func escalate() {
+        mode = .synthetic
+        onModeChange?(.synthetic)
+        consecutiveHighIdle = 0
+        if input.isPermitted {
+            state = .active
+        } else {
+            input.requestPermission()
+            state = .blocked
+        }
     }
 }
