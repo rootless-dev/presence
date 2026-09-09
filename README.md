@@ -2,156 +2,161 @@
 
 [![CI](https://github.com/rootless-dev/presence/actions/workflows/ci.yml/badge.svg)](https://github.com/rootless-dev/presence/actions/workflows/ci.yml)
 
-App de barra de menus para macOS que mantém o status do Microsoft Teams em
-**Disponível** enquanto está ligado.
+macOS menu bar app that keeps Microsoft Teams status at **Available** while
+it's on.
 
-## O problema
+## The problem
 
-O Teams marca você como ausente com base no contador de inatividade do sistema
-(`HIDIdleTime`, exposto pelo `IOHIDSystem`). Alguns minutos longe do teclado e o
-status fica amarelo, mesmo que você esteja trabalhando na frente do computador.
+Teams marks you away based on the system idle counter (`HIDIdleTime`, exposed
+by `IOHIDSystem`). A few minutes away from the keyboard and the status turns
+yellow, even if you're sitting right in front of the computer.
 
-## Como funciona
+## How it works
 
-A cada 30 segundos o app age e então **confere se agiu**:
+Every 30 seconds the app acts and then **checks whether it acted**:
 
-1. Declara atividade do usuário via IOKit (`IOPMAssertionDeclareUserActivity`, a
-   mesma API por trás do `caffeinate -u`).
-2. Espera um segundo e lê o `HIDIdleTime` de volta.
-3. Se o contador não ceder em três ciclos seguidos, escala para injetar uma
-   tecla **F15** sintética — uma tecla que não existe em teclados Mac e à qual
-   nenhum aplicativo reage. Esse modo exige permissão de Acessibilidade.
+1. Declares user activity via IOKit (`IOPMAssertionDeclareUserActivity`, the
+   same API behind `caffeinate -u`).
+2. Waits one second and reads `HIDIdleTime` back.
+3. If the counter doesn't budge for three consecutive cycles, it escalates to
+   injecting a synthetic **F15** key — a key that doesn't exist on Mac
+   keyboards and that no application reacts to. This mode requires
+   Accessibility permission.
 
-O menu mostra o contador de inatividade real, em segundos. Dá para ver que está
-funcionando em vez de torcer.
+The menu shows the actual idle counter, in seconds. You can see it's working
+instead of hoping it is.
 
-### O que a medição mostrou
+### What the measurement showed
 
-A premissa inicial do projeto era que a power assertion do IOKit bastaria. Ela
-não basta. Duas medições independentes, com a máquina comprovadamente ociosa:
+The project's initial premise was that the IOKit power assertion would be
+enough. It isn't. Two independent measurements, with the machine verifiably
+idle:
 
 ```
-caffeinate -u:  idle 63,7s  →  70,0s
-idle-probe:     idle 857,8s →  858,8s
+caffeinate -u:  idle 63.7s  →  70.0s
+idle-probe:     idle 857.8s →  858.8s
 ```
 
-O contador seguiu subindo nas duas. **A declaração de atividade não zera o
-`HIDIdleTime`** — nenhuma flag do `caffeinate` resolve esse problema. Por isso o
-modo com a tecla sintética é o normal de operação, não a exceção.
+The counter kept climbing in both. **Declaring activity does not zero out
+`HIDIdleTime`** — no `caffeinate` flag fixes this. That's why the
+synthetic-key mode is the normal mode of operation, not the exception.
 
-A assertion continua sendo chamada a cada ciclo por outro motivo: é ela que
-mantém a tela acesa e destravada, e tela bloqueada deixa o Teams amarelo de
-qualquer forma. Os dois mecanismos são complementares.
+The assertion is still called every cycle for a different reason: it's what
+keeps the screen on and unlocked, and a locked screen leaves Teams yellow
+regardless. The two mechanisms are complementary.
 
-Rode `make probe` para repetir a medição na sua máquina.
+Run `make probe` to repeat the measurement on your machine.
 
-## Requisitos
+## Requirements
 
-- macOS 14 ou superior (Apple Silicon)
-- Xcode com Swift 6.0+ para compilar
-- Sem dependências externas — só frameworks do sistema
+- macOS 14 or later (Apple Silicon)
+- Xcode with Swift 6.0+ to build
+- No external dependencies — only system frameworks
 
-## Instalação
+## Installation
 
 ```bash
 make install
 open /Applications/Presence.app
 ```
 
-No ícone da barra de menus, clique em **Ativar**. O macOS vai pedir permissão de
-Acessibilidade: conceda em Ajustes do Sistema › Privacidade e Segurança ›
-Acessibilidade e ative novamente. O menu deve passar a mostrar
-`Ativo (modo estendido) · inatividade Ns`.
+In the menu bar icon, click **Enable**. macOS will ask for Accessibility
+permission: grant it in System Settings › Privacy & Security ›
+Accessibility and enable again. The menu should then show
+`Active (extended mode) · idle Ns`.
 
-> Instale em `/Applications` antes de usar "Abrir com o sistema". O
-> `SMAppService` guarda o caminho do bundle, e um login item registrado a partir
-> da pasta de build quebra quando ela muda.
+> Install in `/Applications` before using "Launch at login". `SMAppService`
+> stores the bundle path, and a login item registered from the build folder
+> breaks when that folder changes.
 
-## Uso
+## Usage
 
 ```bash
-make test      # roda a suíte de testes
-make build     # compila em release
-make bundle    # gera o Presence.app
-make install   # instala em /Applications
-make probe     # mede se a power assertion zera o contador nesta máquina
-make clean     # limpa artefatos
+make test      # runs the test suite
+make build     # builds in release
+make bundle    # generates Presence.app
+make install   # installs to /Applications
+make probe     # measures whether the power assertion zeroes the counter on this machine
+make clean     # cleans build artifacts
 ```
 
-## O que esperar
+## What to expect
 
-- **A tela não apaga nem bloqueia** enquanto o app está ativo. É o preço de
-  parecer ativo: se a tela bloqueia, o Teams marca ausente de qualquer forma.
-- **Com a tela bloqueada, o app pausa sozinho.** Declarar atividade acenderia o
-  monitor, e ninguém quer o Mac aceso a noite toda. Ao desbloquear, ele retoma.
-- **Desligamento automático** configurável: nunca, 1h, 4h ou 8h (padrão). Conta
-  tempo de parede, então horas dormindo contam para o prazo.
-- **O app sempre inicia desligado.** Nunca liga sozinho.
-- **Cada rebuild com assinatura ad-hoc revoga a permissão de Acessibilidade**,
-  porque o macOS vincula a permissão ao hash do binário. Para uma identidade
-  estável: `DEV_ID="Developer ID Application: ..." make bundle`.
+- **The screen doesn't dim or lock** while the app is active. That's the
+  price of appearing active: if the screen locks, Teams marks you away
+  regardless.
+- **With the screen locked, the app pauses itself.** Declaring activity would
+  wake the display, and nobody wants the Mac lit up all night. It resumes on
+  unlock.
+- **Auto-off** is configurable: never, 1h, 4h, or 8h (default). It counts
+  wall-clock time, so hours spent asleep count toward the deadline.
+- **The app always starts off.** It never turns itself on.
+- **Every rebuild with an ad-hoc signature revokes the Accessibility
+  permission**, because macOS ties the permission to the binary's hash. For a
+  stable identity: `DEV_ID="Developer ID Application: ..." make bundle`.
 
-## Diagnóstico
+## Diagnostics
 
 ```bash
 log show --predicate 'subsystem == "com.rootless.presence"' --last 1h
 ```
 
-O log registra as transições que respondem "por que o status ficou amarelo às
-15h": quando ligou e em que modo, quando escalou, cada leitura de inatividade
-alta com o número da falha, e quando desligou.
+The log records the transitions that answer "why did the status turn yellow
+at 3pm": when it turned on and in which mode, when it escalated, every
+high-idle reading with the failure count, and when it turned off.
 
-Para fazer o app esquecer o modo já verificado e redescobrir do zero:
+To make the app forget the already-verified mode and rediscover it from
+scratch:
 
 ```bash
 defaults delete com.rootless.presence verifiedActivityMode
 ```
 
-## Arquitetura
+## Architecture
 
 ```
-Sources/PresenceCore/     lógica, sem UI e sem dependência de ciclo de vida
-  IdleReader              lê o HIDIdleTime via IOKit
+Sources/PresenceCore/     logic, no UI and no lifecycle dependency
+  IdleReader              reads HIDIdleTime via IOKit
   ActivityDeclarer        IOPMAssertionDeclareUserActivity
-  SyntheticInput          tecla F15 via CGEvent, em .cghidEventTap
-  LockMonitor             bloqueio e desbloqueio de tela
+  SyntheticInput          F15 key via CGEvent, on .cghidEventTap
+  LockMonitor             screen lock and unlock
   Preferences             UserDefaults
-  PresenceController      máquina de estados e laço de verificação
+  PresenceController      state machine and check loop
 
-Sources/Presence/         camada de app
+Sources/Presence/         app layer
   PresenceApp             MenuBarExtra, LSUIElement
-  PresenceRunner          ritmo de 30s, App Nap, ciclo de vida
-  MenuView                o menu
+  PresenceRunner          30s cadence, App Nap, lifecycle
+  MenuView                the menu
   LoginItem               SMAppService
 
-Sources/idle-probe/       a sonda de medição
+Sources/idle-probe/       the measurement probe
 ```
 
-Toda dependência de sistema entra por protocolo, então o laço inteiro roda nos
-37 testes sem tocar no IOKit e sem esperar tempo real.
+Every system dependency comes in through a protocol, so the whole loop runs
+across the 37 tests without touching IOKit and without waiting on real time.
 
-## Como isto foi verificado
+## How this was verified
 
-Testes verdes não provam que um app deste tipo funciona — eles provam a lógica
-em volta do mecanismo, não o mecanismo. A verificação de ponta a ponta foi
-observar o `HIDIdleTime` de fora, a cada 15 segundos, com o app ativo e ninguém
-tocando na máquina:
+Green tests don't prove an app like this works — they prove the logic around
+the mechanism, not the mechanism. The end-to-end verification was observing
+`HIDIdleTime` from outside, every 15 seconds, with the app active and nobody
+touching the machine:
 
 ```
-09:09-09:11   16 → 31 → 46 → 6 → 21 → 36 → 51 → 66 → 81 → 96 → 111   (app ainda não agindo)
-09:12:05      0,4                                                     (passa a agir)
-09:13-09:29   13 → 28 → 10 → 26 → 8 → 23 → 6 → 21 → 4 → 19 → 1 → 16  (dente de serra)
+09:09-09:11   16 → 31 → 46 → 6 → 21 → 36 → 51 → 66 → 81 → 96 → 111   (app not yet acting)
+09:12:05      0.4                                                     (starts acting)
+09:13-09:29   13 → 28 → 10 → 26 → 8 → 23 → 6 → 21 → 4 → 19 → 1 → 16  (sawtooth)
 ```
 
-Depois de estabilizar, o contador nunca passou de **31,9s** — exatamente o ciclo
-de 30s mais o segundo de verificação — com padrão mecânico, não humano. O Teams
-permaneceu verde por mais de 40 minutos.
+After stabilizing, the counter never exceeded **31.9s** — exactly the 30s
+cycle plus the one-second check — with a mechanical pattern, not a human one.
+Teams stayed green for over 40 minutes.
 
-## Aviso
+## Warning
 
-Algumas empresas têm políticas sobre ferramentas que alteram indicadores de
-presença. Verifique as regras do seu empregador antes de usar.
+Some companies have policies about tools that alter presence indicators.
+Check your employer's rules before using this.
 
-## Licença
+## License
 
-MIT — veja [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).

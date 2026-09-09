@@ -1,10 +1,10 @@
 import Foundation
 
-/// Avisa quando a tela é bloqueada e desbloqueada.
+/// Notifies when the screen is locked and unlocked.
 ///
-/// Importa porque declarar atividade acende o display (documentado na man page
-/// do `caffeinate`, flag `-u`). Sem pausar com a tela bloqueada, o app
-/// reacenderia o monitor a noite toda.
+/// This matters because declaring activity wakes the display (documented in
+/// the `caffeinate` man page, flag `-u`). Without pausing while the screen is
+/// locked, the app would keep waking the monitor all night.
 public protocol LockObserving: AnyObject {
     var onLock: (() -> Void)? { get set }
     var onUnlock: (() -> Void)? { get set }

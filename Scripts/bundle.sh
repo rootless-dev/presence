@@ -34,10 +34,10 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
 </plist>
 PLIST
 
-# Ad-hoc por padrão. Cada rebuild ad-hoc muda o cdhash e revoga a permissão de
-# Acessibilidade já concedida — esperado durante o desenvolvimento. Defina
-# DEV_ID="Developer ID Application: ..." para uma identidade estável.
+# Ad-hoc signature by default. Every ad-hoc rebuild changes the cdhash and
+# revokes the Accessibility permission already granted — expected during
+# development. Set DEV_ID="Developer ID Application: ..." for a stable identity.
 SIGNING_IDENTITY="${DEV_ID:--}"
 codesign --force --sign "$SIGNING_IDENTITY" "$APP"
 
-echo "pronto: $APP (assinado com '$SIGNING_IDENTITY')"
+echo "done: $APP (signed with '$SIGNING_IDENTITY')"

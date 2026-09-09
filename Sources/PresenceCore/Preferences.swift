@@ -1,9 +1,9 @@
 import Foundation
 
-/// Persiste as escolhas do usuário.
+/// Persists the user's choices.
 ///
-/// O estado ligado/desligado é deliberadamente **não** persistido: o app sempre
-/// inicia desligado e nunca liga sozinho.
+/// The on/off state is deliberately **not** persisted: the app always starts
+/// off and never turns itself on.
 public final class Preferences {
 
     private enum Key {
@@ -31,8 +31,8 @@ public final class Preferences {
         }
     }
 
-    /// O modo em que o app deve começar, com base no que já foi verificado
-    /// nesta máquina.
+    /// The mode the app should start in, based on what's already been
+    /// verified on this machine.
     public var startMode: ActivityMode {
         get {
             defaults.string(forKey: Key.startMode) == "synthetic" ? .synthetic : .declared

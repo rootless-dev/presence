@@ -2,9 +2,9 @@ import AppKit
 import ApplicationServices
 import CoreGraphics
 
-/// Injeta um evento de teclado inofensivo para zerar o contador de inatividade.
+/// Injects a harmless keyboard event to reset the idle counter.
 ///
-/// F15 (`kVK_F15`, 0x71) não existe em teclados Mac e nenhum app reage a ela.
+/// F15 (`kVK_F15`, 0x71) doesn't exist on Mac keyboards and no app reacts to it.
 public protocol SyntheticInputting {
     var isPermitted: Bool { get }
     func tap() -> Bool
@@ -22,10 +22,10 @@ public struct SyntheticInput: SyntheticInputting {
         AXIsProcessTrusted()
     }
 
-    /// Posta em `.cghidEventTap`, não em `.cgSessionEventTap`. Eventos
-    /// injetados no tap de sessão podem não alcançar o IOHIDSystem e, portanto,
-    /// não resetar o contador — o que tornaria este fallback inútil sem dar
-    /// nenhum sinal de erro.
+    /// Posts to `.cghidEventTap`, not `.cgSessionEventTap`. Events injected
+    /// into the session tap may not reach the IOHIDSystem and, therefore,
+    /// may not reset the counter — which would make this fallback useless
+    /// without giving any error signal.
     public func tap() -> Bool {
         guard let source = CGEventSource(stateID: .hidSystemState),
               let down = CGEvent(keyboardEventSource: source, virtualKey: keyCode, keyDown: true),
@@ -38,8 +38,8 @@ public struct SyntheticInput: SyntheticInputting {
         return true
     }
 
-    /// Mostra o diálogo do sistema pedindo Acessibilidade. Só aparece uma vez
-    /// por processo; depois disso o usuário precisa ir aos Ajustes.
+    /// Shows the system dialog requesting Accessibility permission. It only
+    /// appears once per process; after that the user needs to go to Settings.
     public func requestPermission() {
         let options = [kAXTrustedCheckOptionPrompt.takeUnretainedValue() as String: true] as CFDictionary
         _ = AXIsProcessTrustedWithOptions(options)

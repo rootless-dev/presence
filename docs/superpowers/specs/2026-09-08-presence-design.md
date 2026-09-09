@@ -1,275 +1,279 @@
 # Presence — design
 
-Data: 2026-09-08
-Status: aprovado, pronto para plano de implementação
+Date: 2026-09-08
+Status: approved, ready for implementation plan
 
-## Problema
+## Problem
 
-O Microsoft Teams no macOS muda o status para "Ausente" (amarelo) quando o
-sistema fica ocioso. O objetivo é manter o status em "Disponível" (verde)
-durante o expediente, sem depender de mexer o mouse manualmente.
+Microsoft Teams on macOS changes status to "Away" (yellow) when the system
+goes idle. The goal is to keep the status at "Available" (green) during work
+hours, without relying on manually moving the mouse.
 
-O Teams determina inatividade a partir do contador de inatividade do sistema
-(`HIDIdleTime`, exposto pelo `IOHIDSystem`) e do bloqueio/protetor de tela.
-Qualquer solução precisa manter esse contador baixo.
+Teams determines idleness from the system idle counter (`HIDIdleTime`,
+exposed by `IOHIDSystem`) and from screen lock/screensaver state. Any
+solution needs to keep this counter low.
 
-## Decisões tomadas
+## Decisions made
 
-| Decisão | Escolha |
+| Decision | Choice |
 |---|---|
-| Formato | App na barra de menus do macOS |
-| Acionamento | Sempre ativo enquanto ligado, com desligamento automático opcional |
-| Tela | Tela permanece acesa e desbloqueada enquanto ativo |
-| Técnica | Híbrida com verificação: power assertion primeiro, input sintético como fallback |
+| Format | macOS menu bar app |
+| Trigger | Always active while on, with optional auto-off |
+| Screen | Screen stays on and unlocked while active |
+| Technique | Hybrid with verification: power assertion first, synthetic input as fallback |
 
-Efeito colateral aceito: enquanto ativo, não há protetor de tela nem bloqueio
-automático. O bloqueio manual continua funcionando normalmente.
+Accepted side effect: while active, there's no screensaver or automatic lock.
+Manual locking still works normally.
 
-## Verificação (concluída em 2026-09-08)
+## Verification (completed on 2026-09-08)
 
-A premissa central — que `IOPMAssertionDeclareUserActivity` zera o
-`HIDIdleTime` — **é falsa nesta máquina**.
+The central premise — that `IOPMAssertionDeclareUserActivity` zeroes out
+`HIDIdleTime` — **is false on this machine**.
 
-Duas medições independentes, a segunda com o `idle-probe` do próprio projeto
-(2026-09-09), numa janela de 858 segundos de ociosidade real — sem a
-contaminação por input humano que invalidou a primeira tentativa durante o
-design:
+Two independent measurements, the second with the project's own
+`idle-probe` (2026-09-09), over an 858-second window of real idleness —
+without the human-input contamination that invalidated the first attempt
+during design:
 
 ```
-caffeinate -u   (2026-09-08):  idle ANTES =  63,7s | DEPOIS =  70,0s
-idle-probe      (2026-09-09):  idle ANTES = 857,8s | DEPOIS = 858,8s
+caffeinate -u   (2026-09-08):  idle BEFORE =  63.7s | AFTER =  70.0s
+idle-probe      (2026-09-09):  idle BEFORE = 857.8s | AFTER = 858.8s
 ```
 
-O contador não caiu em nenhuma das duas: seguiu subindo. Nenhuma flag do `caffeinate` resolve o
-problema do Teams — as demais (`-d`, `-i`, `-s`, `-m`) apenas impedem o sono,
-sem tocar no contador de inatividade.
+The counter didn't drop in either case: it kept climbing. No `caffeinate`
+flag solves Teams' problem — the others (`-d`, `-i`, `-s`, `-m`) only prevent
+sleep, without touching the idle counter.
 
-**Consequências:**
+**Consequences:**
 
-1. `.synthetic` (tecla F15) é o modo normal de operação, não o fallback. A
-   permissão de Acessibilidade é obrigatória.
-2. A power assertion **continua sendo chamada em todo ciclo**. Ela não zera o
-   contador, mas é o que mantém a tela acesa e destravada — e tela bloqueada
-   deixa o Teams amarelo de qualquer forma. Os dois mecanismos são
-   complementares, não alternativos.
-3. O modo verificado é persistido (`Preferences.startMode`). Começar toda
-   sessão em `.declared` gastaria ~90s redescobrindo o que já se sabe, com o
-   status exposto nesse intervalo.
+1. `.synthetic` (F15 key) is the normal mode of operation, not the fallback.
+   Accessibility permission is mandatory.
+2. The power assertion **is still called on every cycle**. It doesn't zero
+   out the counter, but it's what keeps the screen on and unlocked — and a
+   locked screen leaves Teams yellow regardless. The two mechanisms are
+   complementary, not alternatives.
+3. The verified mode is persisted (`Preferences.startMode`). Starting every
+   session in `.declared` would waste ~90s rediscovering what's already
+   known, with the status exposed during that window.
 
-A arquitetura absorveu o resultado sem reescrita — era esse o objetivo de
-tratar a verificação como parte do produto.
+The architecture absorbed the result without a rewrite — that was the point
+of treating verification as part of the product.
 
-## Abordagem
+## Approach
 
-O app declara atividade do usuário via IOKit
-(`IOPMAssertionDeclareUserActivity` com `kIOPMUserActiveLocal`) e **verifica o
-resultado** lendo o `HIDIdleTime`. A declaração não exige nenhuma permissão do
-macOS e não injeta input, mas não há garantia documentada de que zere o
-contador que o Teams observa.
+The app declares user activity via IOKit
+(`IOPMAssertionDeclareUserActivity` with `kIOPMUserActiveLocal`) and
+**verifies the result** by reading `HIDIdleTime`. The declaration requires no
+macOS permission and doesn't inject input, but there's no documented
+guarantee that it zeroes out the counter Teams observes.
 
-Se a verificação mostrar que o contador continua subindo, o app escala para
-input sintético (`CGEvent` de tecla F15 — inexistente em teclados Mac, nenhum
-app reage a ela), que zera o contador com certeza mas exige permissão de
-Acessibilidade.
+If verification shows the counter still climbing, the app escalates to
+synthetic input (`CGEvent` for the F15 key — nonexistent on Mac keyboards, no
+app reacts to it), which reliably zeroes out the counter but requires
+Accessibility permission.
 
-O evento sintético é postado em `.cghidEventTap`, não em `.cgSessionEventTap`.
-Eventos injetados no tap de sessão podem não alcançar o `IOHIDSystem` e,
-portanto, não resetar o contador — o que anularia o fallback inteiro.
+The synthetic event is posted to `.cghidEventTap`, not `.cgSessionEventTap`.
+Events injected into the session tap may not reach `IOHIDSystem` and
+therefore may not reset the counter — which would defeat the fallback
+entirely.
 
-Ordem de privilégio: o caminho sem permissão é sempre tentado primeiro; a
-permissão só é pedida quando comprovadamente necessária.
+Privilege order: the permission-free path is always tried first; permission
+is only requested once it's proven necessary.
 
-### Limite conhecido da verificação
+### Known limit of the verification
 
-Enquanto o usuário está de fato usando o Mac, o `HIDIdleTime` fica perto de zero
-por causa do input humano, e a leitura não distingue "a assertion funcionou" de
-"ele mexeu no mouse". A verificação só é informativa em janelas de ociosidade
-real — que são exatamente as janelas em que o app precisa agir. O estado
-exibido no menu diz "o contador está baixo", não "a assertion está funcionando";
-a spec não promete mais do que isso.
+While the user is actually using the Mac, `HIDIdleTime` stays near zero
+because of human input, and the reading can't distinguish "the assertion
+worked" from "they moved the mouse." Verification is only informative during
+windows of real idleness — which are exactly the windows the app needs to
+act in. The state shown in the menu says "the counter is low," not "the
+assertion is working"; the spec doesn't promise more than that.
 
-## Plataforma e distribuição
+## Platform and distribution
 
-- **macOS 14+**, arm64. `MenuBarExtra` e `SMAppService` exigem macOS 13+; 14 é o
-  piso adotado para evitar APIs em transição.
-- **App Sandbox desligado.** O acesso ao `IOHIDSystem` e o `CGEvent.post` não
-  são possíveis sob sandbox. O app não é distribuído pela App Store.
-- **Assinatura de código.** A permissão de Acessibilidade é vinculada pelo TCC
-  ao bundle ID *e* à assinatura do binário. Com assinatura ad-hoc, cada rebuild
-  gera um cdhash novo e o macOS revoga a permissão concedida — o app volta a
-  pedir autorização a cada build. Duas saídas:
-  1. Assinar com um certificado Developer ID estável, quando houver um.
-  2. Aceitar reconceder a permissão a cada build durante o desenvolvimento, e
-     assinar ad-hoc uma vez só na versão final instalada.
+- **macOS 14+**, arm64. `MenuBarExtra` and `SMAppService` require macOS 13+;
+  14 is the floor adopted to avoid APIs still in transition.
+- **App Sandbox off.** Access to `IOHIDSystem` and `CGEvent.post` aren't
+  possible under sandbox. The app isn't distributed through the App Store.
+- **Code signing.** Accessibility permission is tied by TCC to the bundle ID
+  *and* to the binary's signature. With an ad-hoc signature, every rebuild
+  produces a new cdhash and macOS revokes the granted permission — the app
+  goes back to asking for authorization on every build. Two ways out:
+  1. Sign with a stable Developer ID certificate, when one is available.
+  2. Accept re-granting the permission on every build during development, and
+     sign ad-hoc just once for the final installed version.
 
-  O plano de implementação adota (2) por padrão e deixa (1) como configuração
-  de uma linha no script de build. O bundle ID é fixo:
+  The implementation plan adopts (2) by default and leaves (1) as a one-line
+  configuration in the build script. The bundle ID is fixed:
   `com.rootless.presence`.
-- **Instalação.** O script de build produz `Presence.app`; um alvo `install`
-  copia para `/Applications`. `SMAppService.mainApp` exige que o app esteja em
-  uma localização estável — registrar o login item a partir da pasta de build
-  produz um item quebrado assim que a pasta muda.
+- **Installation.** The build script produces `Presence.app`; an `install`
+  target copies it to `/Applications`. `SMAppService.mainApp` requires the
+  app to be in a stable location — registering the login item from the build
+  folder produces a broken item as soon as that folder changes.
 
-## Arquitetura
+## Architecture
 
 ```
 PresenceApp (SwiftUI, MenuBarExtra, LSUIElement)
-   └── PresenceController      — máquina de estados, @MainActor
+   └── PresenceController      — state machine, @MainActor
          ├── ActivityDeclarer  — IOPMAssertionDeclareUserActivity
-         ├── IdleReader        — HIDIdleTime via IOHIDSystem (IOKit direto)
-         ├── SyntheticInput    — CGEvent F15 em .cghidEventTap (fallback)
-         ├── LockMonitor       — notificações de bloqueio/desbloqueio de tela
+         ├── IdleReader        — HIDIdleTime via IOHIDSystem (direct IOKit)
+         ├── SyntheticInput    — CGEvent F15 on .cghidEventTap (fallback)
+         ├── LockMonitor       — screen lock/unlock notifications
          └── Preferences       — UserDefaults
 ```
 
-Build: Swift Package Manager + script de empacotamento do `.app`. Sem projeto
-Xcode, para manter tudo em texto versionável. Toolchain Swift 6.3, com o
-pacote em modo de linguagem 5: as APIs C do IOKit e os callbacks do
-`DistributedNotificationCenter` geram atrito considerável sob strict
-concurrency, sem benefício real para um app de um processo e uma thread.
-`PresenceController` é `@MainActor` e a UI observa seu estado publicado.
+Build: Swift Package Manager + a packaging script for the `.app`. No Xcode
+project, to keep everything in version-controllable text. Swift 6.3
+toolchain, with the package in language mode 5: IOKit's C APIs and
+`DistributedNotificationCenter` callbacks generate considerable friction
+under strict concurrency, with no real benefit for a single-process,
+single-thread app. `PresenceController` is `@MainActor` and the UI observes
+its published state.
 
-### Componentes
+### Components
 
-**IdleReader** — lê `HIDIdleTime` do serviço `IOHIDSystem` via IOKit e devolve
-segundos. Sem shell out para `ioreg`. Única dependência: IOKit.
+**IdleReader** — reads `HIDIdleTime` from the `IOHIDSystem` service via IOKit
+and returns seconds. No shelling out to `ioreg`. Single dependency: IOKit.
 
-**ActivityDeclarer** — encapsula `IOPMAssertionDeclareUserActivity`, mantendo o
-`IOPMAssertionID` entre chamadas para reaproveitar a assertion. Reporta falha
-em vez de silenciá-la.
+**ActivityDeclarer** — wraps `IOPMAssertionDeclareUserActivity`, keeping the
+`IOPMAssertionID` across calls to reuse the assertion. Reports failure
+instead of swallowing it.
 
-**SyntheticInput** — posta key down + key up de F15 (`kVK_F15`, código 0x71) via
-`CGEvent` no `.cghidEventTap`. Expõe consulta ao estado da permissão
-(`AXIsProcessTrusted`) e uma ação que abre o painel de Ajustes correspondente.
-A permissão é reconsultada a cada ciclo, para que conceder autorização com o app
-aberto passe a valer sem reinício.
+**SyntheticInput** — posts F15 key down + key up (`kVK_F15`, code 0x71) via
+`CGEvent` on `.cghidEventTap`. Exposes a query of the permission state
+(`AXIsProcessTrusted`) and an action that opens the corresponding Settings
+pane. The permission is re-queried every cycle, so granting authorization
+while the app is open takes effect without a restart.
 
-**LockMonitor** — observa `com.apple.screenIsLocked` e
-`com.apple.screenIsUnlocked` no `DistributedNotificationCenter`.
+**LockMonitor** — observes `com.apple.screenIsLocked` and
+`com.apple.screenIsUnlocked` on `DistributedNotificationCenter`.
 
-**Preferences** — persiste em `UserDefaults` o intervalo de auto-off e a
-preferência de abrir com o sistema. O estado ligado/desligado **não** é
-persistido: o app sempre inicia desligado.
+**Preferences** — persists the auto-off interval and the launch-at-login
+preference in `UserDefaults`. The on/off state is **not** persisted: the app
+always starts off.
 
-**PresenceController** — orquestra o laço, mantém o estado e o publica para a
-UI. Recebe as dependências por protocolo, para permitir substitutos nos testes.
+**PresenceController** — orchestrates the loop, holds the state and
+publishes it to the UI. Receives its dependencies via protocol, to allow
+substitutes in tests.
 
-## Estados
+## States
 
-| Estado | Significado |
+| State | Meaning |
 |---|---|
-| `off` | Toggle desligado. Nenhuma ação. |
-| `active(.declared)` | Laço rodando via power assertion, sem permissões. |
-| `active(.synthetic)` | Laço rodando com input sintético, após escalonamento. |
-| `blocked` | Escalonamento necessário, mas a permissão de Acessibilidade foi negada. O app não consegue cumprir sua função e diz isso. |
-| `pausedLocked` | Tela bloqueada. Toggle segue ligado, laço suspenso. |
+| `off` | Toggle off. No action. |
+| `active(.declared)` | Loop running via power assertion, no permissions. |
+| `active(.synthetic)` | Loop running with synthetic input, after escalation. |
+| `blocked` | Escalation needed, but Accessibility permission was denied. The app can't fulfill its function and says so. |
+| `pausedLocked` | Screen locked. Toggle stays on, loop suspended. |
 
-## Laço principal
+## Main loop
 
-Executa a cada 30 segundos enquanto ligado e não pausado:
+Runs every 30 seconds while on and not paused:
 
-1. `ActivityDeclarer.declare()` (sempre, nos dois modos)
-2. Em `.synthetic`, também `SyntheticInput.tap()`
-3. Aguarda 1 segundo
-4. Lê `IdleReader.seconds()`
-5. Idle < 5s → contador de falhas zerado
-6. Idle >= 5s em 3 ciclos consecutivos → escala para `.synthetic`; se a
-   permissão for negada, vai para `blocked`
+1. `ActivityDeclarer.declare()` (always, in both modes)
+2. In `.synthetic`, also `SyntheticInput.tap()`
+3. Waits 1 second
+4. Reads `IdleReader.seconds()`
+5. Idle < 5s → failure counter reset to zero
+6. Idle >= 5s for 3 consecutive cycles → escalates to `.synthetic`; if
+   permission is denied, goes to `blocked`
 
-Margem de segurança: o Teams marca ausente por volta de 5 minutos de
-ociosidade. Um ciclo de 30s com escalonamento em 3 falhas leva no máximo ~93s
-para corrigir o modo — bem dentro da janela. Os números não são arbitrários.
+Safety margin: Teams marks you away after around 5 minutes of idleness. A
+30s cycle with escalation after 3 failures takes at most ~93s to correct the
+mode — well within that window. The numbers aren't arbitrary.
 
-**App Nap.** Um app `LSUIElement` em segundo plano sofre coalescing de timers, e
-um atraso grande no laço derrubaria a garantia acima. O laço é uma `Task` com
-`Task.sleep` entre os ciclos, e o app mantém um
-`ProcessInfo.beginActivity(options: .userInitiated)` enquanto ativo — é o
-`beginActivity` que impede o adiamento, não o tipo de timer.
+**App Nap.** A background `LSUIElement` app suffers timer coalescing, and a
+large delay in the loop would break the guarantee above. The loop is a
+`Task` with `Task.sleep` between cycles, and the app holds a
+`ProcessInfo.beginActivity(options: .userInitiated)` while active — it's
+`beginActivity` that prevents deferral, not the timer type.
 
 ## Interface
 
-Menu da barra:
+Menu bar:
 
-- **Manter disponível** — toggle principal
-- **Estado** — `Ativo · inatividade 2s`, `Ativo (modo estendido)`,
-  `Pausado (tela bloqueada)`, `Precisa de permissão` ou `Desligado`. O valor de
-  inatividade é atualizado ao vivo e serve como evidência visível.
-- **Conceder permissão de Acessibilidade** — visível apenas em `blocked`; abre o
-  painel de Ajustes.
-- **Desligar automaticamente após** — Nunca / 1h / 4h / 8h (padrão: 8h)
-- **Abrir com o sistema** — via `SMAppService`
-- **Sair**
+- **Enable** / **Disable** — main toggle
+- **State** — `Active · idle 2s`, `Active (extended mode)`,
+  `Paused (screen locked)`, `Needs permission`, or `Off`. The idle value
+  updates live and serves as visible evidence.
+- **Grant Accessibility permission** — visible only in `blocked`; opens the
+  Settings pane.
+- **Auto-off after** — Never / 1h / 4h / 8h (default: 8h)
+- **Launch at login** — via `SMAppService`
+- **Quit**
 
-O ícone da barra é um círculo cheio quando ativo, contornado quando desligado e
-com barra diagonal em `blocked`. Ícone template, para acompanhar tema claro e
-escuro.
+The menu bar icon is a filled circle when active, outlined when off, and
+with a diagonal bar in `blocked`. Template icon, to follow light and dark
+themes.
 
-Todo o diagnóstico vai também para `OSLog` (subsystem `com.rootless.presence`),
-para investigar um "por que ficou amarelo às 15h" depois do fato.
+All diagnostics also go to `OSLog` (subsystem `com.rootless.presence`), to
+investigate a "why did it turn yellow at 3pm" after the fact.
 
-## Erros e casos de borda
+## Errors and edge cases
 
-- **Assertion falha** (erro do IOKit) → escala imediatamente, sem esperar os 3
-  ciclos. O app nunca reporta "ativo" sem ter verificado.
-- **Permissão negada** → estado `blocked`, com botão que abre Ajustes. O app não
-  finge estar funcionando.
-- **Tela bloqueada manualmente** → `pausedLocked`. Sem isso, a declaração de
-  atividade reacenderia o display, deixando o Mac aceso a noite toda depois de
-  o usuário sair. Com a tela bloqueada o Teams marca ausente de qualquer forma, então
-  a pausa não custa nada. Ao desbloquear, o laço retoma sozinho — o toggle
-  nunca foi desligado.
-- **Sleep do Mac** (tampa fechada ou sleep manual) → o app não tenta impedir. Ao
-  acordar, retoma se ainda estiver dentro do intervalo de auto-off.
-- **Auto-off** é calculado por tempo de parede: guarda o `Date` de início e
-  compara com o presente. Contar ciclos faria 3h de sleep não contarem, e o app
-  ficaria ligado muito além do pretendido.
-- **Início** → sempre desligado. Nunca liga sozinho.
+- **Assertion fails** (IOKit error) → escalates immediately, without waiting
+  for the 3 cycles. The app never reports "active" without having verified
+  it.
+- **Permission denied** → `blocked` state, with a button that opens
+  Settings. The app doesn't pretend to be working.
+- **Screen locked manually** → `pausedLocked`. Without this, declaring
+  activity would wake the display, leaving the Mac lit up all night after
+  the user leaves. With the screen locked, Teams marks you away regardless,
+  so the pause costs nothing. On unlock, the loop resumes on its own — the
+  toggle was never turned off.
+- **Mac sleep** (lid closed or manual sleep) → the app doesn't try to
+  prevent it. On wake, it resumes if still within the auto-off interval.
+- **Auto-off** is calculated by wall-clock time: it stores the start `Date`
+  and compares it against the present. Counting cycles would mean 3 hours of
+  sleep wouldn't count, and the app would stay on well past what was
+  intended.
+- **Start** → always off. Never turns itself on.
 
-## Testes
+## Tests
 
-- **IdleReader** (integração): confirma que a leitura devolve um valor plausível
-  (>= 0 e < 24h) e que cresce ao longo de 2s sem input. O teste detecta
-  contaminação por atividade humana concorrente (queda no valor) e é marcado
-  como skip nesse caso, em vez de falhar por ruído — foi exatamente esse ruído
-  que invalidou a medição inicial.
-- **PresenceController** (unitário, dependências falsas, relógio injetado):
-  escala para `.synthetic` na terceira leitura consecutiva >= 5s e não na
-  segunda; volta a zerar o contador em uma leitura boa; falha da assertion
-  escala imediatamente; permissão negada leva a `blocked`; bloqueio de tela leva
-  a `pausedLocked` e o desbloqueio retoma; auto-off dispara por tempo de parede,
-  inclusive com um salto de relógio simulando sleep; estado inicial é `off`.
-- **SyntheticInput**: teste manual documentado — sem permissão concedida o
-  `CGEvent.post` falha silenciosamente, então o teste automatizado seria um
-  falso positivo.
-- **Manual, ao final**: ligar, deixar o Mac parado por 15 minutos, confirmar que
-  o Teams permanece verde e que o `HIDIdleTime` no menu se manteve baixo.
+- **IdleReader** (integration): confirms the reading returns a plausible
+  value (>= 0 and < 24h) and that it grows over 2s with no input. The test
+  detects contamination from concurrent human activity (a drop in the
+  value) and is marked skip in that case, instead of failing on noise — it
+  was exactly this noise that invalidated the initial measurement.
+- **PresenceController** (unit, fake dependencies, injected clock): escalates
+  to `.synthetic` on the third consecutive reading >= 5s and not on the
+  second; resets the counter to zero on a good reading; assertion failure
+  escalates immediately; denied permission leads to `blocked`; screen lock
+  leads to `pausedLocked` and unlock resumes; auto-off fires by wall-clock
+  time, including a clock jump simulating sleep; initial state is `off`.
+- **SyntheticInput**: documented manual test — without granted permission,
+  `CGEvent.post` fails silently, so an automated test would be a false
+  positive.
+- **Manual, at the end**: turn on, leave the Mac idle for 15 minutes, confirm
+  Teams stays green and that `HIDIdleTime` in the menu stayed low.
 
-## Definição de pronto — concluída em 2026-09-09
+## Definition of done — completed on 2026-09-09
 
-1. ✅ **Experimento de verificação.** Duas medições, a segunda limpa, registradas
-   acima. A power assertion não zera o `HIDIdleTime`.
-2. ✅ **Testes automatizados.** 37 testes, 0 falhas.
-3. ✅ **App instalado** em `/Applications`, aberto pelo usuário.
-4. ✅ **Teste de ponta a ponta.** Mais de 40 minutos com o Teams verde,
-   confirmado pelo usuário e corroborado por amostragem independente do
-   `HIDIdleTime` a cada 15s:
+1. ✅ **Verification experiment.** Two measurements, the second clean,
+   recorded above. The power assertion doesn't zero out `HIDIdleTime`.
+2. ✅ **Automated tests.** 37 tests, 0 failures.
+3. ✅ **App installed** in `/Applications`, opened by the user.
+4. ✅ **End-to-end test.** Over 40 minutes with Teams green, confirmed by the
+   user and corroborated by independent sampling of `HIDIdleTime` every 15s:
 
 ```
-09:09-09:11   16 → 31 → 46 → 6 → 21 → 36 → 51 → 66 → 81 → 96 → 111   (app ainda não agindo)
-09:12:05      0,4                                                     (passa a agir)
-09:13-09:29   13 → 28 → 10 → 26 → 8 → 23 → 6 → 21 → 4 → 19 → 1 → 16  (dente de serra)
+09:09-09:11   16 → 31 → 46 → 6 → 21 → 36 → 51 → 66 → 81 → 96 → 111   (app not yet acting)
+09:12:05      0.4                                                     (starts acting)
+09:13-09:29   13 → 28 → 10 → 26 → 8 → 23 → 6 → 21 → 4 → 19 → 1 → 16  (sawtooth)
 ```
 
-O contador nunca ultrapassa **31,9s** depois de estabilizar — exatamente o ciclo
-de 30s mais o 1s de verificação. O padrão é mecânico, não humano: uso real
-manteria o idle irregular e quase sempre em zero.
+The counter never exceeds **31.9s** after stabilizing — exactly the 30s
+cycle plus the 1s check. The pattern is mechanical, not human: real use would
+keep idle irregular and almost always at zero.
 
-O app se estabilizou no modo **`.synthetic`**, como a verificação previa.
+The app stabilized in **`.synthetic`** mode, as the verification predicted.
 
-Esta é a primeira observação direta do mecanismo central funcionando. Até aqui,
-os testes provavam a lógica em volta do F15, não o F15.
+This is the first direct observation of the central mechanism working. Until
+now, the tests proved the logic around F15, not F15 itself.
 
-## Fora de escopo
+## Out of scope
 
-Agenda por horário, integração com a API do Teams, detecção de reunião,
-histórico de uso.
+Time-based scheduling, Teams API integration, meeting detection, usage
+history.

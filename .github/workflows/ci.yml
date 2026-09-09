@@ -12,28 +12,28 @@ concurrency:
 
 jobs:
   test:
-    name: Build e testes
+    name: Build and tests
     runs-on: macos-15
 
     steps:
       - uses: actions/checkout@v4
 
-      - name: Versão do Swift
+      - name: Swift version
         run: swift --version
 
       - name: Build
         run: swift build --build-tests
 
-      - name: Testes
+      - name: Tests
         run: swift test
 
-      # O empacotamento faz parte do produto: um bundle.sh quebrado só
-      # apareceria na hora de instalar. O runner assina ad-hoc, como a
-      # configuração padrão do projeto.
-      - name: Empacotar o app
+      # Packaging is part of the product: a broken bundle.sh would only
+      # surface at install time. The runner signs ad-hoc, matching the
+      # project's default configuration.
+      - name: Package the app
         run: ./Scripts/bundle.sh
 
-      - name: Conferir o bundle gerado
+      - name: Verify the generated bundle
         run: |
           set -euo pipefail
           test -x Presence.app/Contents/MacOS/Presence

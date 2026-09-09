@@ -1,11 +1,12 @@
 import OSLog
 import ServiceManagement
 
-/// Registra o app para abrir junto com o sistema.
+/// Registers the app to launch alongside the system.
 ///
-/// `SMAppService.mainApp` guarda a localização do bundle. Registrado a partir
-/// de `.build/release`, o login item quebra assim que a pasta some — por isso
-/// o alvo `install` do Makefile copia para `/Applications` antes.
+/// `SMAppService.mainApp` stores the bundle's location. Registered from
+/// `.build/release`, the login item breaks as soon as that folder disappears
+/// — which is why the Makefile's `install` target copies to `/Applications`
+/// first.
 enum LoginItem {
 
     private static let log = Logger(subsystem: "com.rootless.presence", category: "loginItem")
@@ -24,8 +25,8 @@ enum LoginItem {
             }
             return true
         } catch {
-            let action = enabled ? "registro" : "cancelamento"
-            log.error("falha no \(action, privacy: .public) do login item: \(error.localizedDescription, privacy: .public)")
+            let action = enabled ? "registration" : "unregistration"
+            log.error("login item \(action, privacy: .public) failed: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }

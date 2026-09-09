@@ -15,7 +15,7 @@ bundle:
 install: bundle
 	rm -rf /Applications/Presence.app
 	cp -R Presence.app /Applications/Presence.app
-	@echo "instalado em /Applications/Presence.app"
+	@echo "installed to /Applications/Presence.app"
 
 clean:
 	rm -rf .build Presence.app

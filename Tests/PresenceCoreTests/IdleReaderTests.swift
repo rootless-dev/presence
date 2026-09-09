@@ -3,31 +3,32 @@ import XCTest
 
 final class IdleReaderTests: XCTestCase {
 
-    /// A leitura tem de devolver um valor plausível: nunca negativo e nunca
-    /// maior que um dia. Um valor fora disso significa que estamos lendo a
-    /// chave errada ou convertendo a unidade errada.
-    func test_idleSeconds_devolveValorPlausivel() {
+    /// The reading has to return a plausible value: never negative and never
+    /// greater than a day. A value outside that range means we're reading the
+    /// wrong key or converting to the wrong unit.
+    func test_idleSeconds_returnsPlausibleValue() {
         let reader = IdleReader()
         let value = reader.idleSeconds()
         XCTAssertGreaterThanOrEqual(value, 0)
         XCTAssertLessThan(value, 86_400)
     }
 
-    /// Sem input, o contador cresce. Se houver atividade humana concorrente
-    /// durante o teste, o valor cai — nesse caso o teste é ignorado em vez de
-    /// falhar, porque o ruído não é um defeito do código.
-    func test_idleSeconds_crescerSemInput() throws {
+    /// With no input, the counter grows. If there's concurrent human activity
+    /// during the test, the value drops — in that case the test is skipped
+    /// instead of failing, because the noise isn't a defect in the code.
+    func test_idleSeconds_increasesWithoutInput() throws {
         let reader = IdleReader()
         let first = reader.idleSeconds()
         Thread.sleep(forTimeInterval: 2)
         let second = reader.idleSeconds()
 
-        // Ambiente sem IOHIDSystem acessível (um runner de CI headless, por
-        // exemplo) devolve 0 nas duas leituras. Não há contador para observar,
-        // então não há o que afirmar — e afirmar assim mesmo daria um vermelho
-        // que fala do ambiente, não do código.
-        try XCTSkipIf(first == 0 && second == 0, "IOHIDSystem indisponível neste ambiente")
-        try XCTSkipIf(second < first, "houve input humano durante o teste")
+        // An environment without an accessible IOHIDSystem (a headless CI
+        // runner, for instance) returns 0 on both readings. There's no
+        // counter to observe, so there's nothing to assert — and asserting
+        // anyway would give a red that speaks about the environment, not the
+        // code.
+        try XCTSkipIf(first == 0 && second == 0, "IOHIDSystem unavailable in this environment")
+        try XCTSkipIf(second < first, "there was human input during the test")
         XCTAssertGreaterThan(second, first)
     }
 }

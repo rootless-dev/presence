@@ -1,11 +1,11 @@
 import Foundation
 import PresenceCore
 
-// Experimento: a power assertion zera o HIDIdleTime?
+// Experiment: does the power assertion reset HIDIdleTime?
 //
-// Espera a máquina ficar de fato ociosa por 60s — sem depender de o operador
-// ficar parado numa janela combinada, que foi o que contaminou a medição
-// manual feita durante o design.
+// Waits for the machine to actually go idle for 60s — instead of relying on
+// the operator staying still during an agreed-upon window, which is what
+// contaminated the manual measurement taken during design.
 
 let reader = IdleReader()
 let declarer = ActivityDeclarer()
@@ -13,7 +13,7 @@ let declarer = ActivityDeclarer()
 let threshold: TimeInterval = 60
 let deadline = Date().addingTimeInterval(3600)
 
-print("aguardando \(Int(threshold))s de ociosidade real (até 1h)...")
+print("waiting for \(Int(threshold))s of real idleness (up to 1h)...")
 
 while Date() < deadline {
     guard reader.idleSeconds() >= threshold else {
@@ -25,7 +25,7 @@ while Date() < deadline {
     do {
         try declarer.declare()
     } catch {
-        print("FALHA ao declarar atividade: \(error)")
+        print("FAILED to declare activity: \(error)")
         exit(1)
     }
     Thread.sleep(forTimeInterval: 1)
@@ -34,14 +34,14 @@ while Date() < deadline {
     print(String(format: "idle ANTES = %.1fs | DEPOIS = %.1fs", before, after))
 
     if after < 5 {
-        print("RESULTADO: a assertion ZERA o contador. Modo .declared é viável.")
+        print("RESULT: the assertion DOES reset the counter. .declared mode is viable.")
     } else if after >= before {
-        print("RESULTADO: a assertion NÃO zera o contador. O app viverá em .synthetic.")
+        print("RESULT: the assertion does NOT reset the counter. The app will live in .synthetic.")
     } else {
-        print("RESULTADO: inconclusivo (queda parcial). Repetir a sonda.")
+        print("RESULT: inconclusive (partial drop). Re-run the probe.")
     }
     exit(0)
 }
 
-print("desisti: a máquina não ficou ociosa por \(Int(threshold))s em 1 hora")
+print("giving up: the machine did not go idle for \(Int(threshold))s within 1 hour")
 exit(2)

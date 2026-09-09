@@ -2,11 +2,11 @@ import AppKit
 import Foundation
 import PresenceCore
 
-/// Dono do laço: liga, desliga e mantém o ritmo de 30s.
+/// Owns the loop: turns on, turns off, and keeps the 30s cadence.
 ///
-/// Fica na camada de app, não no `PresenceCore`, porque lida com o ciclo de
-/// vida do processo (App Nap) — coisa que os testes do controller não deveriam
-/// nem enxergar.
+/// Lives in the app layer, not in `PresenceCore`, because it deals with the
+/// process lifecycle (App Nap) — something the controller's tests shouldn't
+/// even have to see.
 @MainActor
 final class PresenceRunner {
 
@@ -42,19 +42,19 @@ final class PresenceRunner {
     private func turnOn() {
         controller.turnOn()
 
-        // Sem isto, o App Nap coalesce os timers de um app de barra de menus em
-        // segundo plano, e um ciclo de 30s pode virar minutos — tempo bastante
-        // para o Teams amarelar antes do próximo tick.
+        // Without this, App Nap coalesces the timers of a backgrounded menu
+        // bar app, and a 30s cycle can turn into minutes — plenty of time
+        // for Teams to go yellow before the next tick.
         activityToken = ProcessInfo.processInfo.beginActivity(
             options: .userInitiated,
-            reason: "Presence mantendo o status disponível"
+            reason: "Presence keeping status available"
         )
 
         loop = Task { [weak self] in
             while !Task.isCancelled {
                 guard let self else { return }
                 await self.controller.tick()
-                // O auto-off desliga por dentro; o runner acompanha.
+                // Auto-off turns itself off internally; the runner just notices.
                 if self.controller.state == .off {
                     self.turnOff()
                     return

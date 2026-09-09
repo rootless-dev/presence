@@ -11,7 +11,7 @@ final class FakeDeclarer: ActivityDeclaring {
     }
 }
 
-/// Devolve os valores na ordem dada; repete o último quando a lista acaba.
+/// Returns the values in the given order; repeats the last one once the list runs out.
 final class FakeIdleReader: IdleReading {
     var values: [TimeInterval]
     private var index = 0
@@ -48,9 +48,9 @@ struct NoSleep: Sleeping {
     func sleep(seconds: TimeInterval) async {}
 }
 
-/// Dublê de `Sleeping` que roda um closure durante a espera, para simular uma
-/// mutação de estado que acontece enquanto um `tick()` está em voo — algo que
-/// o `NoSleep` (sem suspensão real) não consegue intercalar de forma confiável.
+/// A `Sleeping` double that runs a closure during the wait, to simulate a
+/// state mutation that happens while a `tick()` is in flight — something
+/// `NoSleep` (with no real suspension) cannot interleave reliably.
 @MainActor
 final class SleeperSpy: Sleeping {
     var during: () -> Void = {}

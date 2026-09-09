@@ -1,20 +1,20 @@
 import Foundation
 import OSLog
 
-/// Orquestra o laço que mantém o contador de inatividade baixo.
+/// Orchestrates the loop that keeps the idle counter low.
 ///
-/// Toda dependência de sistema entra por protocolo, então o laço inteiro roda
-/// nos testes sem tocar no IOKit e sem esperar tempo real.
+/// Every system dependency comes in through a protocol, so the whole loop
+/// runs in tests without touching IOKit and without waiting on real time.
 @MainActor
 public final class PresenceController: ObservableObject {
 
-    /// Intervalo entre ciclos do laço.
+    /// Interval between loop cycles.
     public static let cycle: TimeInterval = 30
-    /// Espera entre declarar atividade e conferir o resultado.
+    /// Wait between declaring activity and checking the result.
     static let verifyDelay: TimeInterval = 1
-    /// Acima disso, o contador é considerado alto demais.
+    /// Above this, the counter is considered too high.
     static let idleThreshold: TimeInterval = 5
-    /// Leituras altas consecutivas antes de escalar para input sintético.
+    /// Consecutive high readings before escalating to synthetic input.
     static let failuresBeforeEscalation = 3
 
     @Published public private(set) var state: PresenceState = .off
@@ -22,8 +22,8 @@ public final class PresenceController: ObservableObject {
     @Published public private(set) var lastIdle: TimeInterval = 0
     @Published public var autoOff: AutoOffInterval
 
-    /// Avisa quando o modo muda, para que a camada de app persista a
-    /// descoberta e a próxima sessão já comece no modo certo.
+    /// Notifies when the mode changes, so the app layer can persist the
+    /// discovery and the next session already starts in the right mode.
     public var onModeChange: ((ActivityMode) -> Void)?
 
     private let log = Logger(subsystem: "com.rootless.presence", category: "controller")
@@ -64,14 +64,14 @@ public final class PresenceController: ObservableObject {
         consecutiveHighIdle = 0
         hasRequestedPermission = false
         startedAt = date.now
-        log.notice("ligado, modo \(String(describing: self.mode), privacy: .public), autoOff \(self.autoOff.rawValue, privacy: .public)")
+        log.notice("turned on, mode \(String(describing: self.mode), privacy: .public), autoOff \(self.autoOff.rawValue, privacy: .public)")
     }
 
     public func turnOff() {
         state = .off
         consecutiveHighIdle = 0
         startedAt = nil
-        log.notice("desligado")
+        log.notice("turned off")
     }
 
     public func tick() async {
@@ -97,15 +97,16 @@ public final class PresenceController: ObservableObject {
             }
             state = .active
             if !input.tap() {
-                log.error("falha ao criar ou postar o evento F15")
+                log.error("failed to create or post the F15 event")
             }
         }
 
         await sleeper.sleep(seconds: Self.verifyDelay)
 
-        // A sessão pode ter terminado durante a espera: o usuário desligou, ou
-        // a tela bloqueou. Sem esta reconferência, o tick em voo ressuscita o
-        // estado e o app passa a alegar que está ativo sem laço nenhum rodando.
+        // The session may have ended during the wait: the user turned it off,
+        // or the screen locked. Without this recheck, the in-flight tick
+        // resurrects the state and the app ends up claiming to be active with
+        // no loop actually running.
         guard state == .active || state == .blocked else { return }
 
         lastIdle = idleReader.idleSeconds()
@@ -119,15 +120,15 @@ public final class PresenceController: ObservableObject {
             consecutiveHighIdle = 0
         } else {
             consecutiveHighIdle += 1
-            log.info("idle alto: \(self.lastIdle, format: .fixed(precision: 1)) s, falha \(self.consecutiveHighIdle)")
+            log.info("idle high: \(self.lastIdle, format: .fixed(precision: 1)) s, failure \(self.consecutiveHighIdle)")
             if consecutiveHighIdle >= Self.failuresBeforeEscalation && mode == .declared {
                 escalate()
             }
         }
     }
 
-    /// Passa a injetar input de verdade. Se a permissão não estiver concedida,
-    /// pede uma vez e assume `blocked` — o app não finge estar funcionando.
+    /// Switches to injecting real input. If permission isn't granted, it asks
+    /// once and assumes `blocked` — the app doesn't pretend to be working.
     private func escalate() {
         mode = .synthetic
         onModeChange?(.synthetic)
@@ -138,27 +139,27 @@ public final class PresenceController: ObservableObject {
             requestPermissionOnce()
             state = .blocked
         }
-        log.notice("escalou para synthetic, estado \(String(describing: self.state), privacy: .public)")
+        log.notice("escalated to synthetic, state \(String(describing: self.state), privacy: .public)")
     }
 
-    /// O diálogo do sistema só aparece uma vez por processo; pedir a cada ciclo
-    /// não traria o diálogo de volta e só geraria ruído.
+    /// The system dialog only appears once per process; asking every cycle
+    /// wouldn't bring the dialog back and would just generate noise.
     private func requestPermissionOnce() {
         guard !hasRequestedPermission else { return }
         hasRequestedPermission = true
         input.requestPermission()
     }
 
-    /// Usa tempo de parede, não contagem de ciclos: se o Mac dormir três horas,
-    /// essas três horas contam para o prazo.
+    /// Uses wall-clock time, not cycle counting: if the Mac sleeps for three
+    /// hours, those three hours count toward the deadline.
     private var reachedAutoOff: Bool {
         guard let startedAt, let limit = autoOff.seconds else { return false }
         return date.now.timeIntervalSince(startedAt) > limit
     }
 
-    /// A tela bloqueou. Declarar atividade agora reacenderia o display, e com a
-    /// tela bloqueada o Teams marca ausente de qualquer forma — então o laço
-    /// pausa. O toggle continua ligado.
+    /// The screen locked. Declaring activity now would wake the display, and
+    /// with the screen locked Teams marks you away anyway — so the loop
+    /// pauses. The toggle stays on.
     public func screenLocked() {
         guard state == .active || state == .blocked else { return }
         state = .pausedLocked

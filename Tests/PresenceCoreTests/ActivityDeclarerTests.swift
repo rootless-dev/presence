@@ -3,20 +3,20 @@ import XCTest
 
 final class ActivityDeclarerTests: XCTestCase {
 
-    /// Declarar atividade não exige permissão nenhuma, então tem de funcionar
-    /// sempre. Um erro aqui significa IOKit indisponível.
-    func test_declare_naoLancaErro() {
+    /// Declaring activity requires no permission at all, so it has to always
+    /// work. A failure here means IOKit is unavailable.
+    func test_declare_doesNotThrow() {
         let declarer = ActivityDeclarer()
         XCTAssertNoThrow(try declarer.declare())
     }
 
-    /// Chamadas repetidas reaproveitam a mesma assertion em vez de vazar uma
-    /// nova a cada ciclo. O app chama isto a cada 30s, por horas.
-    func test_declare_repetidoReaproveitaAssertion() throws {
+    /// Repeated calls reuse the same assertion instead of leaking a new one
+    /// every cycle. The app calls this every 30s, for hours.
+    func test_declare_repeatedReusesAssertion() throws {
         let declarer = ActivityDeclarer()
         try declarer.declare()
         let first = declarer.assertionIDForTesting
-        XCTAssertNotEqual(first, 0, "a assertion tem de ter sido criada e guardada")
+        XCTAssertNotEqual(first, 0, "the assertion must have been created and stored")
         try declarer.declare()
         XCTAssertEqual(declarer.assertionIDForTesting, first)
     }

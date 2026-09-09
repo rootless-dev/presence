@@ -1,7 +1,7 @@
 import Foundation
 
-/// Relógio injetável. O auto-off usa tempo de parede, então os testes precisam
-/// conseguir saltar horas sem esperar por elas.
+/// Injectable clock. Auto-off uses wall-clock time, so tests need to be able
+/// to jump hours forward without waiting for them.
 public protocol DateProviding {
     var now: Date { get }
 }
@@ -11,8 +11,8 @@ public struct SystemDate: DateProviding {
     public var now: Date { Date() }
 }
 
-/// Espera injetável, para que a pausa de verificação de 1s não deixe a suíte
-/// de testes lenta.
+/// Injectable delay, so the 1s verification pause doesn't slow down the test
+/// suite.
 public protocol Sleeping {
     func sleep(seconds: TimeInterval) async
 }

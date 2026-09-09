@@ -2,11 +2,11 @@ import Foundation
 import IOKit
 import OSLog
 
-/// Lê o contador de inatividade de input do sistema.
+/// Reads the system's input idle counter.
 ///
-/// É o mesmo valor que `ioreg -c IOHIDSystem | grep HIDIdleTime` mostra, em
-/// nanossegundos, e é o número que o Teams consulta para decidir se você está
-/// ausente.
+/// It's the same value `ioreg -c IOHIDSystem | grep HIDIdleTime` shows, in
+/// nanoseconds, and it's the number Teams checks to decide whether you're
+/// away.
 public protocol IdleReading {
     func idleSeconds() -> TimeInterval
 }
@@ -21,14 +21,14 @@ public struct IdleReader: IdleReading {
         var iterator: io_iterator_t = 0
         let matching = IOServiceMatching("IOHIDSystem")
         guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
-            log.error("IOHIDSystem indisponível: IOServiceGetMatchingServices falhou")
+            log.error("IOHIDSystem unavailable: IOServiceGetMatchingServices failed")
             return 0
         }
         defer { IOObjectRelease(iterator) }
 
         let entry = IOIteratorNext(iterator)
         guard entry != 0 else {
-            log.error("IOHIDSystem sem entrada no registry")
+            log.error("IOHIDSystem has no registry entry")
             return 0
         }
         defer { IOObjectRelease(entry) }
@@ -38,7 +38,7 @@ public struct IdleReader: IdleReading {
               let properties = unmanaged?.takeRetainedValue() as? [String: Any],
               let nanoseconds = properties["HIDIdleTime"] as? NSNumber
         else {
-            log.error("propriedade HIDIdleTime ausente ou ilegível")
+            log.error("HIDIdleTime property missing or unreadable")
             return 0
         }
 
