@@ -244,13 +244,30 @@ para investigar um "por que ficou amarelo às 15h" depois do fato.
 - **Manual, ao final**: ligar, deixar o Mac parado por 15 minutos, confirmar que
   o Teams permanece verde e que o `HIDIdleTime` no menu se manteve baixo.
 
-## Definição de pronto
+## Definição de pronto — concluída em 2026-09-09
 
-1. Experimento de verificação executado, com resultado registrado neste
-   documento.
-2. Testes automatizados passando.
-3. `Presence.app` instalado em `/Applications`, abrindo com o sistema.
-4. Teste manual de 15 minutos com o Teams verde.
+1. ✅ **Experimento de verificação.** Duas medições, a segunda limpa, registradas
+   acima. A power assertion não zera o `HIDIdleTime`.
+2. ✅ **Testes automatizados.** 37 testes, 0 falhas.
+3. ✅ **App instalado** em `/Applications`, aberto pelo usuário.
+4. ✅ **Teste de ponta a ponta.** Mais de 40 minutos com o Teams verde,
+   confirmado pelo usuário e corroborado por amostragem independente do
+   `HIDIdleTime` a cada 15s:
+
+```
+09:09-09:11   16 → 31 → 46 → 6 → 21 → 36 → 51 → 66 → 81 → 96 → 111   (app ainda não agindo)
+09:12:05      0,4                                                     (passa a agir)
+09:13-09:29   13 → 28 → 10 → 26 → 8 → 23 → 6 → 21 → 4 → 19 → 1 → 16  (dente de serra)
+```
+
+O contador nunca ultrapassa **31,9s** depois de estabilizar — exatamente o ciclo
+de 30s mais o 1s de verificação. O padrão é mecânico, não humano: uso real
+manteria o idle irregular e quase sempre em zero.
+
+O app se estabilizou no modo **`.synthetic`**, como a verificação previa.
+
+Esta é a primeira observação direta do mecanismo central funcionando. Até aqui,
+os testes provavam a lógica em volta do F15, não o F15.
 
 ## Fora de escopo
 
