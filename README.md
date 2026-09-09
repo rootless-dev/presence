@@ -1,5 +1,7 @@
 # Presence
 
+[![CI](https://github.com/rootless-dev/presence/actions/workflows/ci.yml/badge.svg)](https://github.com/rootless-dev/presence/actions/workflows/ci.yml)
+
 App de barra de menus para macOS que mantém o status do Microsoft Teams em
 **Disponível** enquanto está ligado.
 
@@ -149,3 +151,7 @@ permaneceu verde por mais de 40 minutos.
 
 Algumas empresas têm políticas sobre ferramentas que alteram indicadores de
 presença. Verifique as regras do seu empregador antes de usar.
+
+## Licença
+
+MIT — veja [LICENSE](LICENSE).
