@@ -64,7 +64,7 @@ public final class PresenceController: ObservableObject {
         consecutiveHighIdle = 0
         hasRequestedPermission = false
         startedAt = date.now
-        log.notice("ligado, modo declared, autoOff \(self.autoOff.rawValue, privacy: .public)")
+        log.notice("ligado, modo \(String(describing: self.mode), privacy: .public), autoOff \(self.autoOff.rawValue, privacy: .public)")
     }
 
     public func turnOff() {
@@ -96,10 +96,18 @@ public final class PresenceController: ObservableObject {
                 return
             }
             state = .active
-            _ = input.tap()
+            if !input.tap() {
+                log.error("falha ao criar ou postar o evento F15")
+            }
         }
 
         await sleeper.sleep(seconds: Self.verifyDelay)
+
+        // A sessão pode ter terminado durante a espera: o usuário desligou, ou
+        // a tela bloqueou. Sem esta reconferência, o tick em voo ressuscita o
+        // estado e o app passa a alegar que está ativo sem laço nenhum rodando.
+        guard state == .active || state == .blocked else { return }
+
         lastIdle = idleReader.idleSeconds()
 
         if declareFailed && mode == .declared {

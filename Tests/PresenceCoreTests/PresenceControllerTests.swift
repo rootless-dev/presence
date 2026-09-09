@@ -11,6 +11,7 @@ final class PresenceControllerTests: XCTestCase {
         declarer: FakeDeclarer = FakeDeclarer(),
         input: FakeInput = FakeInput(),
         date: FakeDate = FakeDate(),
+        sleeper: Sleeping = NoSleep(),
         autoOff: AutoOffInterval = .never,
         initialMode: ActivityMode = .declared
     ) -> PresenceController {
@@ -19,7 +20,7 @@ final class PresenceControllerTests: XCTestCase {
             idleReader: FakeIdleReader(values: idle),
             input: input,
             date: date,
-            sleeper: NoSleep(),
+            sleeper: sleeper,
             autoOff: autoOff,
             initialMode: initialMode
         )
@@ -282,5 +283,31 @@ final class PresenceControllerTests: XCTestCase {
         XCTAssertEqual(controller.state, .pausedLocked)
         controller.screenUnlocked()
         XCTAssertEqual(controller.state, .active)
+    }
+
+    /// Desligar durante a janela de verificação não pode deixar o app alegando
+    /// que está ativo — o laço já foi cancelado pelo runner nesse ponto.
+    func test_desligarDuranteAVerificacao_naoRessuscitaOEstado() async {
+        let declarer = FakeDeclarer()
+        declarer.shouldThrow = true
+        let spy = SleeperSpy()
+        let controller = makeController(idle: [10], declarer: declarer, sleeper: spy)
+        controller.turnOn()
+        spy.during = { controller.turnOff() }
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// Bloquear a tela durante a janela de verificação não pode tirar o app da
+    /// pausa — voltar para `.active` faria o laço reacender o monitor.
+    func test_bloquearDuranteAVerificacao_naoRessuscitaOEstado() async {
+        let declarer = FakeDeclarer()
+        declarer.shouldThrow = true
+        let spy = SleeperSpy()
+        let controller = makeController(idle: [10], declarer: declarer, sleeper: spy)
+        controller.turnOn()
+        spy.during = { controller.screenLocked() }
+        await controller.tick()
+        XCTAssertEqual(controller.state, .pausedLocked)
     }
 }

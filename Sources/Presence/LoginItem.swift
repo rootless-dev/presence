@@ -1,3 +1,4 @@
+import OSLog
 import ServiceManagement
 
 /// Registra o app para abrir junto com o sistema.
@@ -6,6 +7,8 @@ import ServiceManagement
 /// de `.build/release`, o login item quebra assim que a pasta some — por isso
 /// o alvo `install` do Makefile copia para `/Applications` antes.
 enum LoginItem {
+
+    private static let log = Logger(subsystem: "com.carlos.presence", category: "loginItem")
 
     static var isEnabled: Bool {
         SMAppService.mainApp.status == .enabled
@@ -21,6 +24,8 @@ enum LoginItem {
             }
             return true
         } catch {
+            let action = enabled ? "registro" : "cancelamento"
+            log.error("falha no \(action, privacy: .public) do login item: \(error.localizedDescription, privacy: .public)")
             return false
         }
     }

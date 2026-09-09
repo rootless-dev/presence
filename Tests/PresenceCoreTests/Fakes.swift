@@ -47,3 +47,15 @@ final class FakeDate: DateProviding {
 struct NoSleep: Sleeping {
     func sleep(seconds: TimeInterval) async {}
 }
+
+/// Dublê de `Sleeping` que roda um closure durante a espera, para simular uma
+/// mutação de estado que acontece enquanto um `tick()` está em voo — algo que
+/// o `NoSleep` (sem suspensão real) não consegue intercalar de forma confiável.
+@MainActor
+final class SleeperSpy: Sleeping {
+    var during: () -> Void = {}
+
+    func sleep(seconds: TimeInterval) async {
+        during()
+    }
+}

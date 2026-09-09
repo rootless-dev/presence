@@ -16,6 +16,7 @@ final class ActivityDeclarerTests: XCTestCase {
         let declarer = ActivityDeclarer()
         try declarer.declare()
         let first = declarer.assertionIDForTesting
+        XCTAssertNotEqual(first, 0, "a assertion tem de ter sido criada e guardada")
         try declarer.declare()
         XCTAssertEqual(declarer.assertionIDForTesting, first)
     }

@@ -1,5 +1,6 @@
 import Foundation
 import IOKit
+import OSLog
 
 /// Lê o contador de inatividade de input do sistema.
 ///
@@ -12,18 +13,24 @@ public protocol IdleReading {
 
 public struct IdleReader: IdleReading {
 
+    private let log = Logger(subsystem: "com.carlos.presence", category: "idle")
+
     public init() {}
 
     public func idleSeconds() -> TimeInterval {
         var iterator: io_iterator_t = 0
         let matching = IOServiceMatching("IOHIDSystem")
         guard IOServiceGetMatchingServices(kIOMainPortDefault, matching, &iterator) == KERN_SUCCESS else {
+            log.error("IOHIDSystem indisponível: IOServiceGetMatchingServices falhou")
             return 0
         }
         defer { IOObjectRelease(iterator) }
 
         let entry = IOIteratorNext(iterator)
-        guard entry != 0 else { return 0 }
+        guard entry != 0 else {
+            log.error("IOHIDSystem sem entrada no registry")
+            return 0
+        }
         defer { IOObjectRelease(entry) }
 
         var unmanaged: Unmanaged<CFMutableDictionary>?
@@ -31,6 +38,7 @@ public struct IdleReader: IdleReading {
               let properties = unmanaged?.takeRetainedValue() as? [String: Any],
               let nanoseconds = properties["HIDIdleTime"] as? NSNumber
         else {
+            log.error("propriedade HIDIdleTime ausente ou ilegível")
             return 0
         }
 
