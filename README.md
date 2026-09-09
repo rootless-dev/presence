@@ -51,3 +51,22 @@ make probe     # experimento: a power assertion zera o contador nesta máquina?
 ```bash
 log show --predicate 'subsystem == "com.carlos.presence"' --last 1h
 ```
+
+### Repetir a verificação nesta máquina
+
+```bash
+make probe
+```
+
+A sonda espera a máquina ficar 60 segundos ociosa de verdade (vá tomar um café)
+e então mede se a power assertion zera o contador. Foi assim que se descobriu
+que ela não zera.
+
+### Esquecer o modo já verificado
+
+O app guarda o modo que funcionou nesta máquina. Para forçá-lo a redescobrir do
+zero:
+
+```bash
+defaults delete com.carlos.presence verifiedActivityMode
+```

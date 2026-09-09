@@ -30,14 +30,17 @@ automático. O bloqueio manual continua funcionando normalmente.
 A premissa central — que `IOPMAssertionDeclareUserActivity` zera o
 `HIDIdleTime` — **é falsa nesta máquina**.
 
-Medição com a máquina comprovadamente ociosa, usando `caffeinate -u` (mesma
-API):
+Duas medições independentes, a segunda com o `idle-probe` do próprio projeto
+(2026-09-09), numa janela de 858 segundos de ociosidade real — sem a
+contaminação por input humano que invalidou a primeira tentativa durante o
+design:
 
 ```
-idle ANTES = 63,7s | DEPOIS = 70,0s
+caffeinate -u   (2026-09-08):  idle ANTES =  63,7s | DEPOIS =  70,0s
+idle-probe      (2026-09-09):  idle ANTES = 857,8s | DEPOIS = 858,8s
 ```
 
-O contador não caiu: seguiu subindo. Nenhuma flag do `caffeinate` resolve o
+O contador não caiu em nenhuma das duas: seguiu subindo. Nenhuma flag do `caffeinate` resolve o
 problema do Teams — as demais (`-d`, `-i`, `-s`, `-m`) apenas impedem o sono,
 sem tocar no contador de inatividade.
 
