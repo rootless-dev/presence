@@ -72,6 +72,11 @@ public final class PresenceController: ObservableObject {
     public func tick() async {
         guard state == .active || state == .blocked else { return }
 
+        if reachedAutoOff {
+            turnOff()
+            return
+        }
+
         var declareFailed = false
         do {
             try declarer.declare()
@@ -127,5 +132,12 @@ public final class PresenceController: ObservableObject {
         guard !hasRequestedPermission else { return }
         hasRequestedPermission = true
         input.requestPermission()
+    }
+
+    /// Usa tempo de parede, não contagem de ciclos: se o Mac dormir três horas,
+    /// essas três horas contam para o prazo.
+    private var reachedAutoOff: Bool {
+        guard let startedAt, let limit = autoOff.seconds else { return false }
+        return date.now.timeIntervalSince(startedAt) > limit
     }
 }

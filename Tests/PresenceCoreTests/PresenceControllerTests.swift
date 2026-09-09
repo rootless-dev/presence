@@ -185,4 +185,58 @@ final class PresenceControllerTests: XCTestCase {
         await controller.tick()
         XCTAssertEqual(input.requestCount, 2)
     }
+
+    func test_autoOffNunca_seguirLigadoDepoisDeDias() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .never)
+        controller.turnOn()
+        date.advance(by: 3 * 24 * 3600)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    func test_autoOff8h_seguirLigadoAntesDoPrazo() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hours8)
+        controller.turnOn()
+        date.advance(by: 7 * 3600)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    func test_autoOff8h_desligaDepoisDoPrazo() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hours8)
+        controller.turnOn()
+        date.advance(by: 8 * 3600 + 1)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// O Mac dormiu 9 horas com o app ligado. Ao acordar, o prazo já passou —
+    /// contar ciclos em vez de tempo de parede faria o app seguir ligado.
+    func test_autoOff_contaTempoDeSleep() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hours8)
+        controller.turnOn()
+        await controller.tick()
+        date.advance(by: 9 * 3600)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// Religar reinicia a contagem do zero.
+    func test_religar_reiniciaOPrazo() async {
+        let date = FakeDate()
+        let controller = makeController(idle: [0], date: date, autoOff: .hour1)
+        controller.turnOn()
+        date.advance(by: 3601)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .off)
+
+        controller.turnOn()
+        date.advance(by: 60)
+        await controller.tick()
+        XCTAssertEqual(controller.state, .active)
+    }
 }
