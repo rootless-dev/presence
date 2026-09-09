@@ -22,6 +22,11 @@ final class IdleReaderTests: XCTestCase {
         Thread.sleep(forTimeInterval: 2)
         let second = reader.idleSeconds()
 
+        // Ambiente sem IOHIDSystem acessível (um runner de CI headless, por
+        // exemplo) devolve 0 nas duas leituras. Não há contador para observar,
+        // então não há o que afirmar — e afirmar assim mesmo daria um vermelho
+        // que fala do ambiente, não do código.
+        try XCTSkipIf(first == 0 && second == 0, "IOHIDSystem indisponível neste ambiente")
         try XCTSkipIf(second < first, "houve input humano durante o teste")
         XCTAssertGreaterThan(second, first)
     }

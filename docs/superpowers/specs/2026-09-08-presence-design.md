@@ -6,8 +6,8 @@ Status: aprovado, pronto para plano de implementação
 ## Problema
 
 O Microsoft Teams no macOS muda o status para "Ausente" (amarelo) quando o
-sistema fica ocioso. Carlos quer que o status permaneça "Disponível" (verde)
-enquanto ele estiver trabalhando, sem depender de mexer o mouse manualmente.
+sistema fica ocioso. O objetivo é manter o status em "Disponível" (verde)
+durante o expediente, sem depender de mexer o mouse manualmente.
 
 O Teams determina inatividade a partir do contador de inatividade do sistema
 (`HIDIdleTime`, exposto pelo `IOHIDSystem`) e do bloqueio/protetor de tela.
@@ -81,7 +81,7 @@ permissão só é pedida quando comprovadamente necessária.
 
 ### Limite conhecido da verificação
 
-Enquanto Carlos está de fato usando o Mac, o `HIDIdleTime` fica perto de zero
+Enquanto o usuário está de fato usando o Mac, o `HIDIdleTime` fica perto de zero
 por causa do input humano, e a leitura não distingue "a assertion funcionou" de
 "ele mexeu no mouse". A verificação só é informativa em janelas de ociosidade
 real — que são exatamente as janelas em que o app precisa agir. O estado
@@ -98,7 +98,7 @@ a spec não promete mais do que isso.
   ao bundle ID *e* à assinatura do binário. Com assinatura ad-hoc, cada rebuild
   gera um cdhash novo e o macOS revoga a permissão concedida — o app volta a
   pedir autorização a cada build. Duas saídas:
-  1. Assinar com um certificado Developer ID estável, se Carlos tiver um.
+  1. Assinar com um certificado Developer ID estável, quando houver um.
   2. Aceitar reconceder a permissão a cada build durante o desenvolvimento, e
      assinar ad-hoc uma vez só na versão final instalada.
 
@@ -215,7 +215,7 @@ para investigar um "por que ficou amarelo às 15h" depois do fato.
   finge estar funcionando.
 - **Tela bloqueada manualmente** → `pausedLocked`. Sem isso, a declaração de
   atividade reacenderia o display, deixando o Mac aceso a noite toda depois de
-  Carlos sair. Com a tela bloqueada o Teams marca ausente de qualquer forma, então
+  o usuário sair. Com a tela bloqueada o Teams marca ausente de qualquer forma, então
   a pausa não custa nada. Ao desbloquear, o laço retoma sozinho — o toggle
   nunca foi desligado.
 - **Sleep do Mac** (tampa fechada ou sleep manual) → o app não tenta impedir. Ao

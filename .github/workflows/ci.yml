@@ -1,0 +1,42 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Build e testes
+    runs-on: macos-15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Versão do Swift
+        run: swift --version
+
+      - name: Build
+        run: swift build --build-tests
+
+      - name: Testes
+        run: swift test
+
+      # O empacotamento faz parte do produto: um bundle.sh quebrado só
+      # apareceria na hora de instalar. O runner assina ad-hoc, como a
+      # configuração padrão do projeto.
+      - name: Empacotar o app
+        run: ./Scripts/bundle.sh
+
+      - name: Conferir o bundle gerado
+        run: |
+          set -euo pipefail
+          test -x Presence.app/Contents/MacOS/Presence
+          /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" Presence.app/Contents/Info.plist
+          /usr/libexec/PlistBuddy -c "Print :LSUIElement" Presence.app/Contents/Info.plist
+          codesign -dv Presence.app 2>&1 | grep -q "Identifier=com.carlos.presence"
