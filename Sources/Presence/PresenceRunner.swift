@@ -39,6 +39,21 @@ final class PresenceRunner {
         preferences.autoOff = interval
     }
 
+    func setLunchEnabled(_ enabled: Bool) {
+        controller.lunchEnabled = enabled
+        preferences.lunchEnabled = enabled
+    }
+
+    func setLunchStart(_ start: TimeOfDay) {
+        controller.lunchStart = start
+        preferences.lunchStart = start
+    }
+
+    func setLunchEnd(_ end: TimeOfDay) {
+        controller.lunchEnd = end
+        preferences.lunchEnd = end
+    }
+
     private func turnOn() {
         controller.turnOn()
 

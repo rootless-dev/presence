@@ -20,7 +20,23 @@ struct MenuView: View {
             }
         }
 
+        if controller.state == .pausedBreak {
+            Button("Resume now") {
+                controller.resumeNow()
+            }
+        } else if controller.state != .off {
+            Menu("Pause for") {
+                ForEach(BreakDuration.allCases) { duration in
+                    Button(duration.label) { controller.pause(for: duration) }
+                }
+            }
+        }
+
         Divider()
+
+        SettingsLink {
+            Text("Lunch break…")
+        }
 
         Picker("Turn off automatically after", selection: autoOffBinding) {
             ForEach(AutoOffInterval.allCases) { interval in
@@ -66,6 +82,9 @@ struct MenuView: View {
             return "Accessibility permission required"
         case .pausedLocked:
             return "Paused (screen locked)"
+        case .pausedBreak:
+            guard let endsAt = controller.breakEndsAt else { return "Paused" }
+            return "Paused · back at \(endsAt.formatted(date: .omitted, time: .shortened))"
         }
     }
 }

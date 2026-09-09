@@ -9,6 +9,9 @@ public final class Preferences {
     private enum Key {
         static let autoOff = "autoOffInterval"
         static let startMode = "verifiedActivityMode"
+        static let lunchEnabled = "lunchEnabled"
+        static let lunchStart = "lunchStart"
+        static let lunchEnd = "lunchEnd"
     }
 
     private let defaults: UserDefaults
@@ -29,6 +32,27 @@ public final class Preferences {
         set {
             defaults.set(newValue.rawValue, forKey: Key.autoOff)
         }
+    }
+
+    /// Off by default: the app only steps aside when the user asks it to.
+    public var lunchEnabled: Bool {
+        get { defaults.bool(forKey: Key.lunchEnabled) }
+        set { defaults.set(newValue, forKey: Key.lunchEnabled) }
+    }
+
+    public var lunchStart: TimeOfDay {
+        get { time(forKey: Key.lunchStart) ?? TimeOfDay(hour: 12, minute: 0) }
+        set { defaults.set(newValue.minutesFromMidnight, forKey: Key.lunchStart) }
+    }
+
+    public var lunchEnd: TimeOfDay {
+        get { time(forKey: Key.lunchEnd) ?? TimeOfDay(hour: 13, minute: 0) }
+        set { defaults.set(newValue.minutesFromMidnight, forKey: Key.lunchEnd) }
+    }
+
+    private func time(forKey key: String) -> TimeOfDay? {
+        guard defaults.object(forKey: key) != nil else { return nil }
+        return TimeOfDay(minutesFromMidnight: defaults.integer(forKey: key))
     }
 
     /// The mode the app should start in, based on what's already been

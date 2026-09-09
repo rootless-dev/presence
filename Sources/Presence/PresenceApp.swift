@@ -16,7 +16,10 @@ struct PresenceApp: App {
             date: SystemDate(),
             sleeper: SystemSleeper(),
             autoOff: preferences.autoOff,
-            initialMode: preferences.startMode
+            initialMode: preferences.startMode,
+            lunchEnabled: preferences.lunchEnabled,
+            lunchStart: preferences.lunchStart,
+            lunchEnd: preferences.lunchEnd
         )
         _controller = StateObject(wrappedValue: controller)
         runner = PresenceRunner(
@@ -34,6 +37,10 @@ struct PresenceApp: App {
             Image(systemName: iconName)
         }
         .menuBarExtraStyle(.menu)
+
+        Settings {
+            LunchSettingsView(controller: controller, runner: runner)
+        }
     }
 
     private var iconName: String {
@@ -41,6 +48,7 @@ struct PresenceApp: App {
         case .off: return "circle"
         case .blocked: return "circle.slash"
         case .pausedLocked: return "circle.dotted"
+        case .pausedBreak: return "cup.and.saucer"
         case .active: return "circle.fill"
         }
     }

@@ -40,4 +40,33 @@ final class PreferencesTests: XCTestCase {
         Preferences(defaults: defaults).startMode = .synthetic
         XCTAssertEqual(Preferences(defaults: defaults).startMode, .synthetic)
     }
+
+    /// The app never pauses on its own unless the user asks for it.
+    func test_lunch_defaultsToDisabledAtNoon() {
+        let prefs = Preferences(defaults: makeDefaults())
+        XCTAssertFalse(prefs.lunchEnabled)
+        XCTAssertEqual(prefs.lunchStart, TimeOfDay(hour: 12, minute: 0))
+        XCTAssertEqual(prefs.lunchEnd, TimeOfDay(hour: 13, minute: 0))
+    }
+
+    func test_lunch_writesAndReadsBack() {
+        let defaults = makeDefaults()
+        let prefs = Preferences(defaults: defaults)
+        prefs.lunchEnabled = true
+        prefs.lunchStart = TimeOfDay(hour: 11, minute: 45)
+        prefs.lunchEnd = TimeOfDay(hour: 13, minute: 5)
+        XCTAssertTrue(Preferences(defaults: defaults).lunchEnabled)
+        XCTAssertEqual(Preferences(defaults: defaults).lunchStart, TimeOfDay(hour: 11, minute: 45))
+        XCTAssertEqual(Preferences(defaults: defaults).lunchEnd, TimeOfDay(hour: 13, minute: 5))
+    }
+
+    /// A value outside the day must not pause the app at a random time.
+    func test_lunch_invalidValueFallsBackToDefault() {
+        let defaults = makeDefaults()
+        defaults.set(5000, forKey: "lunchStart")
+        defaults.set(-1, forKey: "lunchEnd")
+        let prefs = Preferences(defaults: defaults)
+        XCTAssertEqual(prefs.lunchStart, TimeOfDay(hour: 12, minute: 0))
+        XCTAssertEqual(prefs.lunchEnd, TimeOfDay(hour: 13, minute: 0))
+    }
 }

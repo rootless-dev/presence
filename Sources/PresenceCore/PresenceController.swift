@@ -21,6 +21,11 @@ public final class PresenceController: ObservableObject {
     @Published public private(set) var mode: ActivityMode = .declared
     @Published public private(set) var lastIdle: TimeInterval = 0
     @Published public var autoOff: AutoOffInterval
+    @Published public var lunchEnabled: Bool
+    @Published public var lunchStart: TimeOfDay
+    @Published public var lunchEnd: TimeOfDay
+    /// When the current break ends, so the menu can say when the app is back.
+    @Published public private(set) var breakEndsAt: Date?
 
     /// Notifies when the mode changes, so the app layer can persist the
     /// discovery and the next session already starts in the right mode.
@@ -38,6 +43,14 @@ public final class PresenceController: ObservableObject {
     private var consecutiveHighIdle = 0
     private var startedAt: Date?
     private var hasRequestedPermission = false
+    private var screenIsLocked = false
+    private var manualBreakUntil: Date?
+    /// End of a scheduled window the user came back early from, so the
+    /// schedule doesn't drag them back in on the next cycle.
+    private var skipScheduleUntil: Date?
+    private var breakStartedAt: Date?
+    /// Time spent on breaks, discounted from the auto-off countdown.
+    private var pausedTotal: TimeInterval = 0
 
     public init(
         declarer: ActivityDeclaring,
@@ -46,7 +59,10 @@ public final class PresenceController: ObservableObject {
         date: DateProviding,
         sleeper: Sleeping,
         autoOff: AutoOffInterval,
-        initialMode: ActivityMode = .declared
+        initialMode: ActivityMode = .declared,
+        lunchEnabled: Bool = false,
+        lunchStart: TimeOfDay = TimeOfDay(hour: 12, minute: 0),
+        lunchEnd: TimeOfDay = TimeOfDay(hour: 13, minute: 0)
     ) {
         self.declarer = declarer
         self.idleReader = idleReader
@@ -54,6 +70,9 @@ public final class PresenceController: ObservableObject {
         self.date = date
         self.sleeper = sleeper
         self.autoOff = autoOff
+        self.lunchEnabled = lunchEnabled
+        self.lunchStart = lunchStart
+        self.lunchEnd = lunchEnd
         self.initialMode = initialMode
         self.mode = initialMode
     }
@@ -64,6 +83,12 @@ public final class PresenceController: ObservableObject {
         consecutiveHighIdle = 0
         hasRequestedPermission = false
         startedAt = date.now
+        clearBreak()
+        pausedTotal = 0
+        skipScheduleUntil = nil
+        if let end = breakEnd(at: date.now) {
+            beginBreak(endingAt: end)
+        }
         log.notice("turned on, mode \(String(describing: self.mode), privacy: .public), autoOff \(self.autoOff.rawValue, privacy: .public)")
     }
 
@@ -71,11 +96,23 @@ public final class PresenceController: ObservableObject {
         state = .off
         consecutiveHighIdle = 0
         startedAt = nil
+        clearBreak()
         log.notice("turned off")
     }
 
     public func tick() async {
-        guard state == .active || state == .blocked else { return }
+        guard state == .active || state == .blocked || state == .pausedBreak else { return }
+
+        // The break is evaluated before anything else: while it lasts the app
+        // declares nothing and injects nothing, which is the whole point of
+        // stepping away for lunch.
+        if let end = breakEnd(at: date.now) {
+            beginBreak(endingAt: end)
+            return
+        }
+        if state == .pausedBreak {
+            endBreak()
+        }
 
         if reachedAutoOff {
             turnOff()
@@ -154,18 +191,100 @@ public final class PresenceController: ObservableObject {
     /// hours, those three hours count toward the deadline.
     private var reachedAutoOff: Bool {
         guard let startedAt, let limit = autoOff.seconds else { return false }
-        return date.now.timeIntervalSince(startedAt) > limit
+        // Breaks don't count: "8 hours" means 8 hours of work, so an hour of
+        // lunch pushes the deadline an hour further out.
+        return date.now.timeIntervalSince(startedAt) - pausedTotal > limit
+    }
+
+    /// Starts a manual break of the given length. Useful on the days that
+    /// don't match the scheduled lunch.
+    public func pause(for duration: BreakDuration) {
+        guard state != .off else { return }
+        manualBreakUntil = date.now.addingTimeInterval(duration.seconds)
+        if let end = breakEnd(at: date.now), state != .pausedLocked {
+            beginBreak(endingAt: end)
+        }
+        log.notice("manual break of \(duration.rawValue, privacy: .public) min")
+    }
+
+    /// Ends the current break right away. Skipping a scheduled window only
+    /// skips today's — tomorrow's lunch still happens.
+    public func resumeNow() {
+        if let end = scheduledBreakEnd(at: date.now) {
+            skipScheduleUntil = end
+        }
+        manualBreakUntil = nil
+        guard state == .pausedBreak else { return }
+        endBreak()
+        log.notice("break ended early")
+    }
+
+    /// End of the break in effect right now, scheduled or manual, or `nil`
+    /// when there is none.
+    private func breakEnd(at now: Date) -> Date? {
+        let manual = manualBreakUntil.flatMap { $0 > now ? $0 : nil }
+        guard let scheduled = scheduledBreakEnd(at: now) else { return manual }
+        guard let manual else { return scheduled }
+        return max(manual, scheduled)
+    }
+
+    /// End of today's lunch window, if `now` falls inside it. The latest
+    /// start plus the longest duration still lands on the same day, so the
+    /// window never has to be split across midnight.
+    /// End of today's lunch window, if `now` falls inside it. An end that
+    /// isn't after the start is not a window, so a misconfigured pair can't
+    /// pause the app indefinitely.
+    private func scheduledBreakEnd(at now: Date) -> Date? {
+        guard lunchEnabled, lunchStart < lunchEnd else { return nil }
+        let calendar = Calendar.current
+        guard let start = calendar.date(
+                bySettingHour: lunchStart.hour, minute: lunchStart.minute, second: 0, of: now
+              ),
+              let end = calendar.date(
+                bySettingHour: lunchEnd.hour, minute: lunchEnd.minute, second: 0, of: now
+              )
+        else { return nil }
+
+        guard now >= start, now < end else { return nil }
+        if let skipScheduleUntil, now < skipScheduleUntil { return nil }
+        return end
+    }
+
+    private func beginBreak(endingAt end: Date) {
+        breakEndsAt = end
+        guard state != .pausedBreak else { return }
+        breakStartedAt = date.now
+        state = .pausedBreak
+        log.notice("break started, back at \(end, privacy: .public)")
+    }
+
+    /// Returns to the loop — or to the lock pause, if the screen is still
+    /// locked, since resuming there would only wake the monitor.
+    private func endBreak() {
+        if let breakStartedAt {
+            pausedTotal += date.now.timeIntervalSince(breakStartedAt)
+        }
+        clearBreak()
+        state = screenIsLocked ? .pausedLocked : .active
+    }
+
+    private func clearBreak() {
+        breakStartedAt = nil
+        breakEndsAt = nil
+        manualBreakUntil = nil
     }
 
     /// The screen locked. Declaring activity now would wake the display, and
     /// with the screen locked Teams marks you away anyway — so the loop
     /// pauses. The toggle stays on.
     public func screenLocked() {
+        screenIsLocked = true
         guard state == .active || state == .blocked else { return }
         state = .pausedLocked
     }
 
     public func screenUnlocked() {
+        screenIsLocked = false
         guard state == .pausedLocked else { return }
         state = .active
     }

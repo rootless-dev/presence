@@ -88,8 +88,16 @@ make clean     # cleans build artifacts
 - **With the screen locked, the app pauses itself.** Declaring activity would
   wake the display, and nobody wants the Mac lit up all night. It resumes on
   unlock.
+- **Lunch break.** In **Lunch break…** (a settings window, any minute of the
+  day) you enable it and set the window. Every day in that window the app
+  steps aside: it stops declaring activity, the icon turns into a cup, and it
+  comes back on its own at the end. Off by default. For the days that don't
+  follow the routine, **Pause for** in the menu suspends it right now for 30
+  minutes to 2 hours, and **Resume now** cuts any break short — coming back
+  early only skips today's window, not tomorrow's.
 - **Auto-off** is configurable: never, 1h, 4h, or 8h (default). It counts
-  wall-clock time, so hours spent asleep count toward the deadline.
+  wall-clock time, so hours spent asleep count toward the deadline. Breaks
+  don't count: an hour of lunch pushes the deadline an hour further out.
 - **The app always starts off.** It never turns itself on.
 - **Every rebuild with an ad-hoc signature revokes the Accessibility
   permission**, because macOS ties the permission to the binary's hash. For a
@@ -127,13 +135,14 @@ Sources/Presence/         app layer
   PresenceApp             MenuBarExtra, LSUIElement
   PresenceRunner          30s cadence, App Nap, lifecycle
   MenuView                the menu
+  LunchSettingsView       the lunch break settings window
   LoginItem               SMAppService
 
 Sources/idle-probe/       the measurement probe
 ```
 
 Every system dependency comes in through a protocol, so the whole loop runs
-across the 37 tests without touching IOKit and without waiting on real time.
+across the 56 tests without touching IOKit and without waiting on real time.
 
 ## How this was verified
 
