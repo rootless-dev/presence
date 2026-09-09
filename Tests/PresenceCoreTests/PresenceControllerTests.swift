@@ -239,4 +239,48 @@ final class PresenceControllerTests: XCTestCase {
         await controller.tick()
         XCTAssertEqual(controller.state, .active)
     }
+
+    func test_bloquearTela_pausaSemDesligar() async {
+        let declarer = FakeDeclarer()
+        let controller = makeController(idle: [0], declarer: declarer)
+        controller.turnOn()
+        controller.screenLocked()
+        XCTAssertEqual(controller.state, .pausedLocked)
+
+        await controller.tick()
+        XCTAssertEqual(declarer.callCount, 0, "com a tela bloqueada o laço não age")
+    }
+
+    func test_desbloquearTela_retomaSozinho() async {
+        let controller = makeController(idle: [0])
+        controller.turnOn()
+        controller.screenLocked()
+        controller.screenUnlocked()
+        XCTAssertEqual(controller.state, .active)
+    }
+
+    /// Bloquear a tela com o app desligado não pode ligá-lo ao desbloquear.
+    func test_bloquearComAppDesligado_continuaDesligado() {
+        let controller = makeController()
+        controller.screenLocked()
+        XCTAssertEqual(controller.state, .off)
+        controller.screenUnlocked()
+        XCTAssertEqual(controller.state, .off)
+    }
+
+    /// Bloqueou estando em `blocked`? Ao desbloquear volta para `active` e o
+    /// laço reavalia a permissão no ciclo seguinte.
+    func test_bloquearEstandoSemPermissao_retomaAoDesbloquear() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [10, 10, 10], input: input)
+        controller.turnOn()
+        for _ in 0..<3 { await controller.tick() }
+        XCTAssertEqual(controller.state, .blocked)
+
+        controller.screenLocked()
+        XCTAssertEqual(controller.state, .pausedLocked)
+        controller.screenUnlocked()
+        XCTAssertEqual(controller.state, .active)
+    }
 }

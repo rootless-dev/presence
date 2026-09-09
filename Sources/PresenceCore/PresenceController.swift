@@ -140,4 +140,17 @@ public final class PresenceController: ObservableObject {
         guard let startedAt, let limit = autoOff.seconds else { return false }
         return date.now.timeIntervalSince(startedAt) > limit
     }
+
+    /// A tela bloqueou. Declarar atividade agora reacenderia o display, e com a
+    /// tela bloqueada o Teams marca ausente de qualquer forma — então o laço
+    /// pausa. O toggle continua ligado.
+    public func screenLocked() {
+        guard state == .active || state == .blocked else { return }
+        state = .pausedLocked
+    }
+
+    public func screenUnlocked() {
+        guard state == .pausedLocked else { return }
+        state = .active
+    }
 }
