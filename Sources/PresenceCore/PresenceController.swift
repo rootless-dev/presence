@@ -34,6 +34,7 @@ public final class PresenceController: ObservableObject {
 
     private var consecutiveHighIdle = 0
     private var startedAt: Date?
+    private var hasRequestedPermission = false
 
     public init(
         declarer: ActivityDeclaring,
@@ -58,6 +59,7 @@ public final class PresenceController: ObservableObject {
         state = .active
         mode = initialMode
         consecutiveHighIdle = 0
+        hasRequestedPermission = false
         startedAt = date.now
     }
 
@@ -79,6 +81,7 @@ public final class PresenceController: ObservableObject {
 
         if mode == .synthetic {
             guard input.isPermitted else {
+                requestPermissionOnce()
                 state = .blocked
                 return
             }
@@ -113,8 +116,16 @@ public final class PresenceController: ObservableObject {
         if input.isPermitted {
             state = .active
         } else {
-            input.requestPermission()
+            requestPermissionOnce()
             state = .blocked
         }
+    }
+
+    /// O diálogo do sistema só aparece uma vez por processo; pedir a cada ciclo
+    /// não traria o diálogo de volta e só geraria ruído.
+    private func requestPermissionOnce() {
+        guard !hasRequestedPermission else { return }
+        hasRequestedPermission = true
+        input.requestPermission()
     }
 }

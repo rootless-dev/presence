@@ -158,4 +158,31 @@ final class PresenceControllerTests: XCTestCase {
         XCTAssertEqual(controller.mode, .synthetic)
         XCTAssertEqual(input.tapCount, 2)
     }
+
+    /// Cenário real: o app foi reinstalado, a assinatura ad-hoc mudou e o macOS
+    /// revogou a Acessibilidade — mas as preferências dizem para começar em
+    /// sintético. Sem pedir a permissão, o app ficaria mudo para sempre.
+    func test_iniciarEmSinteticoSemPermissao_pedeAPermissaoUmaVez() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [0, 0, 0], input: input, initialMode: .synthetic)
+        controller.turnOn()
+        for _ in 0..<3 { await controller.tick() }
+        XCTAssertEqual(controller.state, .blocked)
+        XCTAssertEqual(input.requestCount, 1, "pede uma vez por sessão, não a cada ciclo")
+    }
+
+    /// Religar depois de desligar volta a pedir — o usuário pode ter concedido
+    /// a permissão nesse meio-tempo e querer tentar de novo.
+    func test_religar_voltaAPedirAPermissao() async {
+        let input = FakeInput()
+        input.isPermitted = false
+        let controller = makeController(idle: [0, 0], input: input, initialMode: .synthetic)
+        controller.turnOn()
+        await controller.tick()
+        controller.turnOff()
+        controller.turnOn()
+        await controller.tick()
+        XCTAssertEqual(input.requestCount, 2)
+    }
 }
