@@ -17,7 +17,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleExecutable</key>
     <string>Presence</string>
     <key>CFBundleIdentifier</key>
-    <string>com.carlos.presence</string>
+    <string>com.rootless.presence</string>
     <key>CFBundleName</key>
     <string>Presence</string>
     <key>CFBundlePackageType</key>

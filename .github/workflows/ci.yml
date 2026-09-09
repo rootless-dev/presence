@@ -39,4 +39,4 @@ jobs:
           test -x Presence.app/Contents/MacOS/Presence
           /usr/libexec/PlistBuddy -c "Print :CFBundleIdentifier" Presence.app/Contents/Info.plist
           /usr/libexec/PlistBuddy -c "Print :LSUIElement" Presence.app/Contents/Info.plist
-          codesign -dv Presence.app 2>&1 | grep -q "Identifier=com.carlos.presence"
+          codesign -dv Presence.app 2>&1 | grep -q "Identifier=com.rootless.presence"

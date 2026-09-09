@@ -8,7 +8,7 @@ import ServiceManagement
 /// o alvo `install` do Makefile copia para `/Applications` antes.
 enum LoginItem {
 
-    private static let log = Logger(subsystem: "com.carlos.presence", category: "loginItem")
+    private static let log = Logger(subsystem: "com.rootless.presence", category: "loginItem")
 
     static var isEnabled: Bool {
         SMAppService.mainApp.status == .enabled

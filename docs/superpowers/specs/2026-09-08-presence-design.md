@@ -104,7 +104,7 @@ a spec não promete mais do que isso.
 
   O plano de implementação adota (2) por padrão e deixa (1) como configuração
   de uma linha no script de build. O bundle ID é fixo:
-  `com.carlos.presence`.
+  `com.rootless.presence`.
 - **Instalação.** O script de build produz `Presence.app`; um alvo `install`
   copia para `/Applications`. `SMAppService.mainApp` exige que o app esteja em
   uma localização estável — registrar o login item a partir da pasta de build
@@ -204,7 +204,7 @@ O ícone da barra é um círculo cheio quando ativo, contornado quando desligado
 com barra diagonal em `blocked`. Ícone template, para acompanhar tema claro e
 escuro.
 
-Todo o diagnóstico vai também para `OSLog` (subsystem `com.carlos.presence`),
+Todo o diagnóstico vai também para `OSLog` (subsystem `com.rootless.presence`),
 para investigar um "por que ficou amarelo às 15h" depois do fato.
 
 ## Erros e casos de borda

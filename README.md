@@ -94,7 +94,7 @@ make clean     # limpa artefatos
 ## Diagnóstico
 
 ```bash
-log show --predicate 'subsystem == "com.carlos.presence"' --last 1h
+log show --predicate 'subsystem == "com.rootless.presence"' --last 1h
 ```
 
 O log registra as transições que respondem "por que o status ficou amarelo às
@@ -104,7 +104,7 @@ alta com o número da falha, e quando desligou.
 Para fazer o app esquecer o modo já verificado e redescobrir do zero:
 
 ```bash
-defaults delete com.carlos.presence verifiedActivityMode
+defaults delete com.rootless.presence verifiedActivityMode
 ```
 
 ## Arquitetura

@@ -26,7 +26,7 @@ public final class PresenceController: ObservableObject {
     /// descoberta e a próxima sessão já comece no modo certo.
     public var onModeChange: ((ActivityMode) -> Void)?
 
-    private let log = Logger(subsystem: "com.carlos.presence", category: "controller")
+    private let log = Logger(subsystem: "com.rootless.presence", category: "controller")
 
     private let declarer: ActivityDeclaring
     private let idleReader: IdleReading

@@ -13,7 +13,7 @@ public protocol IdleReading {
 
 public struct IdleReader: IdleReading {
 
-    private let log = Logger(subsystem: "com.carlos.presence", category: "idle")
+    private let log = Logger(subsystem: "com.rootless.presence", category: "idle")
 
     public init() {}
 
