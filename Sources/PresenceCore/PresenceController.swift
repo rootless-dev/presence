@@ -275,8 +275,8 @@ public final class PresenceController: ObservableObject {
     }
 
     /// The screen locked. Declaring activity now would wake the display, and
-    /// with the screen locked Teams marks you away anyway — so the loop
-    /// pauses. The toggle stays on.
+    /// a machine nobody is sitting at has nothing to stay active for — so
+    /// the loop pauses. The toggle stays on.
     public func screenLocked() {
         screenIsLocked = true
         guard state == .active || state == .blocked else { return }

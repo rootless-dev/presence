@@ -2,14 +2,15 @@
 
 [![CI](https://github.com/rootless-dev/presence/actions/workflows/ci.yml/badge.svg)](https://github.com/rootless-dev/presence/actions/workflows/ci.yml)
 
-macOS menu bar app that keeps Microsoft Teams status at **Available** while
-it's on.
+macOS menu bar app that keeps the machine active while it's on.
 
 ## The problem
 
-Teams marks you away based on the system idle counter (`HIDIdleTime`, exposed
-by `IOHIDSystem`). A few minutes away from the keyboard and the status turns
-yellow, even if you're sitting right in front of the computer.
+macOS counts the time since your last input in the system idle counter
+(`HIDIdleTime`, exposed by `IOHIDSystem`). A few minutes without touching the
+keyboard and the machine counts as idle: the screen dims, then locks, and
+anything that reads that counter treats you as gone, even while you're
+sitting right in front of the computer.
 
 ## How it works
 
@@ -42,8 +43,8 @@ The counter kept climbing in both. **Declaring activity does not zero out
 synthetic-key mode is the normal mode of operation, not the exception.
 
 The assertion is still called every cycle for a different reason: it's what
-keeps the screen on and unlocked, and a locked screen leaves Teams yellow
-regardless. The two mechanisms are complementary.
+keeps the screen on and unlocked, and a machine with the screen locked isn't
+active by any measure. The two mechanisms are complementary.
 
 Run `make probe` to repeat the measurement on your machine.
 
@@ -83,8 +84,8 @@ make clean     # cleans build artifacts
 ## What to expect
 
 - **The screen doesn't dim or lock** while the app is active. That's the
-  price of appearing active: if the screen locks, Teams marks you away
-  regardless.
+  point, and the price: a machine that dims and locks is a machine that
+  went idle.
 - **With the screen locked, the app pauses itself.** Declaring activity would
   wake the display, and nobody wants the Mac lit up all night. It resumes on
   unlock.
@@ -109,8 +110,8 @@ make clean     # cleans build artifacts
 log show --predicate 'subsystem == "com.rootless.presence"' --last 1h
 ```
 
-The log records the transitions that answer "why did the status turn yellow
-at 3pm": when it turned on and in which mode, when it escalated, every
+The log records the transitions that answer "why did the machine go idle at
+3pm": when it turned on and in which mode, when it escalated, every
 high-idle reading with the failure count, and when it turned off.
 
 To make the app forget the already-verified mode and rediscover it from
@@ -159,12 +160,12 @@ touching the machine:
 
 After stabilizing, the counter never exceeded **31.9s** — exactly the 30s
 cycle plus the one-second check — with a mechanical pattern, not a human one.
-Teams stayed green for over 40 minutes.
+It held that way for over 40 minutes.
 
 ## Warning
 
-Some companies have policies about tools that alter presence indicators.
-Check your employer's rules before using this.
+Some companies have policies about tools that keep a machine artificially
+active. Check your employer's rules before using this.
 
 ## License
 

@@ -54,9 +54,9 @@ struct LunchSettingsView: View {
             return "The end has to be after the start — the break is ignored until it is."
         }
         guard controller.lunchEnabled else {
-            return "While disabled, the app keeps you available all day."
+            return "While disabled, the app keeps the machine active all day."
         }
-        return "Every day in this window the app stops keeping you available, and resumes on its own when it ends."
+        return "Every day in this window the app stops keeping the machine active, and resumes on its own when it ends."
     }
 
     /// Bridges a `TimeOfDay` to the `Date` a `DatePicker` works with. Only

@@ -59,10 +59,10 @@ final class PresenceRunner {
 
         // Without this, App Nap coalesces the timers of a backgrounded menu
         // bar app, and a 30s cycle can turn into minutes — plenty of time
-        // for Teams to go yellow before the next tick.
+        // for the machine to go idle before the next tick.
         activityToken = ProcessInfo.processInfo.beginActivity(
             options: .userInitiated,
-            reason: "Presence keeping status available"
+            reason: "Presence keeping the machine active"
         )
 
         loop = Task { [weak self] in

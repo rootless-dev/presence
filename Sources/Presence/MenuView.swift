@@ -68,8 +68,8 @@ struct MenuView: View {
     }
 
     /// Shows the real idle counter. It's the visible evidence that the app
-    /// is working — without it the user only finds out it failed when
-    /// someone mentions their status went yellow.
+    /// is working — without it the user only finds out it failed after the
+    /// machine already went idle.
     private var statusText: String {
         switch controller.state {
         case .off:

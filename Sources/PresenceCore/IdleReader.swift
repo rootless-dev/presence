@@ -5,8 +5,8 @@ import OSLog
 /// Reads the system's input idle counter.
 ///
 /// It's the same value `ioreg -c IOHIDSystem | grep HIDIdleTime` shows, in
-/// nanoseconds, and it's the number Teams checks to decide whether you're
-/// away.
+/// nanoseconds, and it's the number the system uses to decide the machine
+/// has gone idle.
 public protocol IdleReading {
     func idleSeconds() -> TimeInterval
 }

@@ -24,7 +24,7 @@ public final class ActivityDeclarer: ActivityDeclaring {
     public var assertionIDForTesting: UInt32 { assertionID }
 
     public func declare() throws {
-        let name = "Presence: keeping status available" as CFString
+        let name = "Presence: keeping the machine active" as CFString
         let result = IOPMAssertionDeclareUserActivity(name, kIOPMUserActiveLocal, &assertionID)
         guard result == kIOReturnSuccess else {
             throw ActivityDeclarerError.ioKitFailure(result)
